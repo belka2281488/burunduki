@@ -26,18 +26,34 @@
 
   <div class="search-wrap">
     <input type="text" id="searchInput" class="search-input" placeholder="🔍 Поиск по имени...">
-    <select id="authorFilter" class="filter-select">
-      <option value="all">Все авторы</option>
-    </select>
-    <select id="sortSelect" class="filter-select">
-      <option value="date_desc">Сначала новые</option>
-      <option value="date_asc">Сначала старые</option>
-      <option value="name_asc">Имя: А → Я</option>
-      <option value="name_desc">Имя: Я → А</option>
-      <option value="rating_desc">Оценка: сначала лучшие</option>
-      <option value="rating_asc">Оценка: сначала худшие</option>
-      <option value="rating_none">Сначала неоценённые</option>
-    </select>
+    <button id="filterToggleBtn" class="filter-toggle-btn" title="Фильтры" aria-label="Фильтры">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+        <line x1="2" y1="5" x2="16" y2="5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="2" y1="9" x2="16" y2="9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="2" y1="13" x2="16" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </button>
+  </div>
+
+  <div id="filterPanel" class="filter-panel hidden">
+    <div class="filter-panel-row">
+      <label class="filter-panel-label">Автор</label>
+      <select id="authorFilter" class="filter-select">
+        <option value="all">Все авторы</option>
+      </select>
+    </div>
+    <div class="filter-panel-row">
+      <label class="filter-panel-label">Сортировка</label>
+      <select id="sortSelect" class="filter-select">
+        <option value="date_desc">Сначала новые</option>
+        <option value="date_asc">Сначала старые</option>
+        <option value="name_asc">Имя: А → Я</option>
+        <option value="name_desc">Имя: Я → А</option>
+        <option value="rating_desc">Оценка: сначала лучшие</option>
+        <option value="rating_asc">Оценка: сначала худшие</option>
+        <option value="rating_count_desc">Больше всего оценок</option>
+      </select>
+    </div>
   </div>
 
   <div class="category-tabs" id="categoryTabs"></div>

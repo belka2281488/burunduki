@@ -37,6 +37,15 @@ const deleteConfirm = document.getElementById("deleteConfirm");
 const searchInput = document.getElementById("searchInput");
 const authorFilterEl = document.getElementById("authorFilter");
 const sortSelectEl = document.getElementById("sortSelect");
+const filterToggleBtn = document.getElementById("filterToggleBtn");
+const filterPanel = document.getElementById("filterPanel");
+
+if (filterToggleBtn && filterPanel) {
+  filterToggleBtn.addEventListener("click", () => {
+    filterPanel.classList.toggle("hidden");
+    filterToggleBtn.classList.toggle("active");
+  });
+}
 const whoAmIEl = document.getElementById("whoAmI");
 const whoAmIGigers = document.getElementById("whoAmIGigers");
 const gigerRemoveSound = document.getElementById("gigerRemoveSound");
@@ -419,6 +428,11 @@ function getAvgRating(kind, id) {
   return entry ? entry.avg : null;
 }
 
+function getRatingCount(kind, id) {
+  const entry = allRatingsMap[`${kind}:${id}`];
+  return entry ? entry.count : 0;
+}
+
 /* ==================================================================
    ФИЛЬТР ПО АВТОРУ И СОРТИРОВКА
    ================================================================== */
@@ -488,14 +502,8 @@ function applySort(records, kind) {
         return ra - rb;
       });
       break;
-    case "rating_none":
-      sorted.sort((a, b) => {
-        const ra = getAvgRating(kind, a.id);
-        const rb = getAvgRating(kind, b.id);
-        const aNone = ra === null ? 0 : 1;
-        const bNone = rb === null ? 0 : 1;
-        return aNone - bNone;
-      });
+    case "rating_count_desc":
+      sorted.sort((a, b) => getRatingCount(kind, b.id) - getRatingCount(kind, a.id));
       break;
     case "date_desc":
     default:

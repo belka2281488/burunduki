@@ -15,8 +15,21 @@
     Ты: <span id="whoAmI">—</span>
     <span class="giger-badge" id="whoAmIGigers" title="Твои гиперзадки"></span>
     <button id="changeNameBtn" class="link-btn">сменить имя</button>
+    <button id="activityBellBtn" class="activity-bell-btn" title="Центр активности" aria-label="Центр активности">
+      🔔<span id="activityBadge" class="activity-badge hidden">0</span>
+    </button>
   </div>
 </header>
+
+<div id="activityPanel" class="activity-panel hidden">
+  <div class="activity-panel-header">
+    <span>Центр активности</span>
+    <button id="activityCloseBtn" class="link-btn">закрыть</button>
+  </div>
+  <div id="activityList" class="activity-list">
+    <div class="activity-empty">Пока тихо 🐿️</div>
+  </div>
+</div>
 
 <main>
   <div class="tabs">
@@ -183,7 +196,9 @@
   <div class="lightbox-hint" id="lightboxHint">Наведи курсор на фото, чтобы приблизить · колесо мыши — размер лупы</div>
 
   <div class="zoom-container" id="zoomContainer">
+    <button class="lightbox-nav lightbox-nav-prev" id="lightboxPrevBtn" title="Предыдущее фото (←)">&#10094;</button>
     <img id="lightboxImg" src="" alt="">
+    <button class="lightbox-nav lightbox-nav-next" id="lightboxNextBtn" title="Следующее фото (→)">&#10095;</button>
     <div class="magnifier" id="magnifier"></div>
   </div>
   </div>
@@ -232,7 +247,11 @@
     <button id="videoDeleteBtn" class="tool-btn tool-btn-danger" title="Удалить">🗑️ Удалить</button>
   </div>
 
-  <div class="video-container" id="videoContainer"></div>
+  <div class="video-container-wrap" id="videoContainerWrap">
+    <button class="lightbox-nav lightbox-nav-prev" id="videoLightboxPrevBtn" title="Предыдущее видео (←)">&#10094;</button>
+    <div class="video-container" id="videoContainer"></div>
+    <button class="lightbox-nav lightbox-nav-next" id="videoLightboxNextBtn" title="Следующее видео (→)">&#10095;</button>
+  </div>
   </div>
 
   <div class="rating-panel">

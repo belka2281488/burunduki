@@ -10,6 +10,8 @@ let allRatingsMap = {}; // "photo:<id>" / "video:<id>" -> { avg, count }
 const RATING_TABLE = "burunduk_ratings";
 const GIGER_TABLE = "burunduk_gigers";
 const GIGER_GIFTS_TABLE = "burunduk_giger_gifts";
+const VIEWS_TABLE = "burunduk_views";
+const ACTIVITY_TABLE = "burunduk_activity";
 
 /* ---------- Ранги оценки (вместо звёзд) ---------- */
 const RANK_LEVELS = [
@@ -75,6 +77,15 @@ const lightboxName = document.getElementById("lightboxName");
 const lightboxDescription = document.getElementById("lightboxDescription");
 const lightboxHint = document.getElementById("lightboxHint");
 const lightboxClose = document.getElementById("lightboxClose");
+const activityBellBtn = document.getElementById("activityBellBtn");
+const activityBadge = document.getElementById("activityBadge");
+const activityPanel = document.getElementById("activityPanel");
+const activityCloseBtn = document.getElementById("activityCloseBtn");
+const activityList = document.getElementById("activityList");
+const lightboxPrevBtn = document.getElementById("lightboxPrevBtn");
+const lightboxNextBtn = document.getElementById("lightboxNextBtn");
+const videoLightboxPrevBtn = document.getElementById("videoLightboxPrevBtn");
+const videoLightboxNextBtn = document.getElementById("videoLightboxNextBtn");
 const zoomContainer = document.getElementById("zoomContainer");
 const magnifier = document.getElementById("magnifier");
 const modeLoupeBtn = document.getElementById("modeLoupeBtn");
@@ -204,6 +215,7 @@ nameConfirm.addEventListener("click", () => {
   nameInput.value = "";
   refreshWhoAmI();
   refreshMyGigerBalance();
+  refreshActivityBadge();
 });
 
 changeNameBtn.addEventListener("click", () => {
@@ -568,10 +580,13 @@ function nameFromFilename(filename) {
 
 let allPhotoRecords = [];
 let allVideoRecords = [];
+let currentPhotoList = [];
+let currentPhotoIndex = -1;
 
 function renderPhotoGallery(records) {
+  currentPhotoList = records;
   galleryPhoto.innerHTML = "";
-  records.forEach((record) => {
+  records.forEach((record, idx) => {
     const src = publicUrlFor(record.storage_path);
     const card = document.createElement("div");
     card.className = "card";
@@ -580,7 +595,7 @@ function renderPhotoGallery(records) {
       <div class="name">${record.name}</div>
       ${record.owner_name ? `<div class="owner-tag">от ${record.owner_name}</div>` : ""}
     `;
-    card.addEventListener("click", () => openLightbox(record, src));
+    card.addEventListener("click", () => openLightbox(record, src, idx));
     galleryPhoto.appendChild(card);
   });
 }
@@ -741,9 +756,10 @@ deleteBtn.addEventListener("click", () => {
 /* ---------- Лайтбокс фото ---------- */
 let currentMode = "loupe";
 
-function openLightbox(record, src) {
+function openLightbox(record, src, index) {
   currentPhotoRecord = record;
   currentPhotoSrc = src;
+  currentPhotoIndex = typeof index === "number" ? index : currentPhotoList.indexOf(record);
   lightboxImg.src = src;
   lightboxImg.style.transform = "";
   lightboxName.textContent = record.name;
@@ -756,15 +772,60 @@ function openLightbox(record, src) {
   editBtn.classList.toggle("hidden", !owner);
   deleteBtn.classList.toggle("hidden", !owner);
 
+  updateLightboxNavButtons();
+
   lightbox.classList.add("active");
   loadRatings("photo", record.id);
   loadGiftState("photo", record);
+  registerView("photo", record);
 }
+
+function updateLightboxNavButtons() {
+  if (!lightboxPrevBtn || !lightboxNextBtn) return;
+  const hasMultiple = currentPhotoList.length > 1;
+  lightboxPrevBtn.classList.toggle("hidden", !hasMultiple);
+  lightboxNextBtn.classList.toggle("hidden", !hasMultiple);
+}
+
+function showPhotoAtIndex(index) {
+  if (!currentPhotoList.length) return;
+  const len = currentPhotoList.length;
+  const newIndex = ((index % len) + len) % len;
+  const record = currentPhotoList[newIndex];
+  const src = publicUrlFor(record.storage_path);
+  openLightbox(record, src, newIndex);
+}
+
+function showPrevPhoto() {
+  if (currentPhotoIndex === -1) return;
+  showPhotoAtIndex(currentPhotoIndex - 1);
+}
+
+function showNextPhoto() {
+  if (currentPhotoIndex === -1) return;
+  showPhotoAtIndex(currentPhotoIndex + 1);
+}
+
+if (lightboxPrevBtn) lightboxPrevBtn.addEventListener("click", (e) => { e.stopPropagation(); showPrevPhoto(); });
+if (lightboxNextBtn) lightboxNextBtn.addEventListener("click", (e) => { e.stopPropagation(); showNextPhoto(); });
+
+document.addEventListener("keydown", (e) => {
+  if (lightbox.classList.contains("active")) {
+    if (e.key === "ArrowLeft") showPrevPhoto();
+    else if (e.key === "ArrowRight") showNextPhoto();
+    else if (e.key === "Escape") closeLightbox();
+  } else if (videoLightbox.classList.contains("active")) {
+    if (e.key === "ArrowLeft") showPrevVideo();
+    else if (e.key === "ArrowRight") showNextVideo();
+    else if (e.key === "Escape") closeVideoLightbox();
+  }
+});
 
 function closeLightbox() {
   lightbox.classList.remove("active");
   magnifier.style.display = "none";
   currentPhotoRecord = null;
+  currentPhotoIndex = -1;
 }
 
 lightboxClose.addEventListener("click", closeLightbox);
@@ -793,6 +854,12 @@ let ZOOM = 2.5;
 
 zoomContainer.addEventListener("mousemove", (e) => {
   if (currentMode !== "loupe") return;
+
+  if (e.target.closest && e.target.closest(".lightbox-nav")) {
+    magnifier.style.display = "none";
+    return;
+  }
+
   const rect = zoomContainer.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
@@ -820,6 +887,13 @@ zoomContainer.addEventListener("mousemove", (e) => {
 zoomContainer.addEventListener("mouseleave", () => {
   if (currentMode === "loupe") magnifier.style.display = "none";
 });
+
+if (lightboxPrevBtn) {
+  lightboxPrevBtn.addEventListener("mouseenter", () => { magnifier.style.display = "none"; });
+}
+if (lightboxNextBtn) {
+  lightboxNextBtn.addEventListener("mouseenter", () => { magnifier.style.display = "none"; });
+}
 
 let scale = 1, panX = 0, panY = 0, isDragging = false, dragStartX = 0, dragStartY = 0;
 
@@ -928,9 +1002,13 @@ const SOURCE_LABELS = {
   other: "Видео",
 };
 
+let currentVideoList = [];
+let currentVideoIndex = -1;
+
 function renderVideoGallery(records) {
+  currentVideoList = records;
   galleryVideo.innerHTML = "";
-  records.forEach((record) => {
+  records.forEach((record, idx) => {
     const card = document.createElement("div");
     card.className = "card";
     card.innerHTML = `
@@ -941,7 +1019,7 @@ function renderVideoGallery(records) {
       <div class="name">${record.name}</div>
       ${record.owner_name ? `<div class="owner-tag">от ${record.owner_name}</div>` : ""}
     `;
-    card.addEventListener("click", () => openVideoLightbox(record));
+    card.addEventListener("click", () => openVideoLightbox(record, idx));
     galleryVideo.appendChild(card);
   });
 }
@@ -997,8 +1075,9 @@ function buildEmbedHtml(record) {
   return { html: `<iframe src="${url}" allowfullscreen></iframe>`, landscape: true };
 }
 
-function openVideoLightbox(record) {
+function openVideoLightbox(record, index) {
   currentVideoRecord = record;
+  currentVideoIndex = typeof index === "number" ? index : currentVideoList.indexOf(record);
   videoLightboxName.textContent = record.name;
   videoLightboxDescription.textContent = record.description || "";
   videoLightboxDescription.style.display = record.description ? "block" : "none";
@@ -1011,15 +1090,46 @@ function openVideoLightbox(record) {
   videoEditBtn.classList.toggle("hidden", !owner);
   videoDeleteBtn.classList.toggle("hidden", !owner);
 
+  updateVideoNavButtons();
+
   videoLightbox.classList.add("active");
   loadRatings("video", record.id);
   loadGiftState("video", record);
+  registerView("video", record);
 }
+
+function updateVideoNavButtons() {
+  if (!videoLightboxPrevBtn || !videoLightboxNextBtn) return;
+  const hasMultiple = currentVideoList.length > 1;
+  videoLightboxPrevBtn.classList.toggle("hidden", !hasMultiple);
+  videoLightboxNextBtn.classList.toggle("hidden", !hasMultiple);
+}
+
+function showVideoAtIndex(index) {
+  if (!currentVideoList.length) return;
+  const len = currentVideoList.length;
+  const newIndex = ((index % len) + len) % len;
+  openVideoLightbox(currentVideoList[newIndex], newIndex);
+}
+
+function showPrevVideo() {
+  if (currentVideoIndex === -1) return;
+  showVideoAtIndex(currentVideoIndex - 1);
+}
+
+function showNextVideo() {
+  if (currentVideoIndex === -1) return;
+  showVideoAtIndex(currentVideoIndex + 1);
+}
+
+if (videoLightboxPrevBtn) videoLightboxPrevBtn.addEventListener("click", (e) => { e.stopPropagation(); showPrevVideo(); });
+if (videoLightboxNextBtn) videoLightboxNextBtn.addEventListener("click", (e) => { e.stopPropagation(); showNextVideo(); });
 
 function closeVideoLightbox() {
   videoLightbox.classList.remove("active");
   videoContainer.innerHTML = ""; // остановить воспроизведение
   currentVideoRecord = null;
+  currentVideoIndex = -1;
 }
 
 videoLightboxClose.addEventListener("click", closeVideoLightbox);
@@ -1334,14 +1444,20 @@ async function submitRating(kind) {
     return;
   }
 
+  const commentText = ratingEls[kind].comment.value.trim();
+
   // Если отмечена галочка "подарить гиперзадку" и человек ещё не дарил
   // её этой карточке раньше — дарим вместе с оценкой.
   const gEls = gigerEls[kind];
   const record = kind === "photo" ? currentPhotoRecord : currentVideoRecord;
   if (gEls.checkbox.checked && !alreadyGifted[kind] && record) {
-    await sendGiger(kind, record, ratingEls[kind].comment.value.trim());
+    await sendGiger(kind, record, commentText);
   } else {
     showToast("Оценка сохранена 🐿️");
+  }
+
+  if (commentText && record) {
+    logActivity("comment", kind, record, commentText);
   }
 
   btn.disabled = false;
@@ -1472,6 +1588,7 @@ async function sendGiger(kind, record, comment) {
 
   showToast("Оценка сохранена, гиперзадка подарена 🎁");
   refreshMyGigerBalance();
+  logActivity("gift", kind, record);
   return true;
 }
 
@@ -1597,7 +1714,207 @@ document.addEventListener("keydown", (e) => {
     uploadModal.classList.remove("active");
     videoModal.classList.remove("active");
     deleteModal.classList.remove("active");
+    activityPanel.classList.add("hidden");
   }
+});
+
+/* ==================================================================
+   ЦЕНТР АКТИВНОСТИ (кто посмотрел / прокомментировал / подарил гиперзадку)
+   ================================================================== */
+const ACTIVITY_SEEN_KEY = "burunduk-activity-seen-at";
+
+function getActivitySeenAt() {
+  return localStorage.getItem(ACTIVITY_SEEN_KEY) || null;
+}
+
+function setActivitySeenNow() {
+  localStorage.setItem(ACTIVITY_SEEN_KEY, new Date().toISOString());
+}
+
+function timeAgo(dateStr) {
+  const diffMs = Date.now() - new Date(dateStr).getTime();
+  const min = Math.floor(diffMs / 60000);
+  if (min < 1) return "только что";
+  if (min < 60) return `${min} мин назад`;
+  const hrs = Math.floor(min / 60);
+  if (hrs < 24) return `${hrs} ч назад`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days} дн назад`;
+  return new Date(dateStr).toLocaleDateString("ru-RU");
+}
+
+// Отмечаем просмотр карточки (не своей), не блокируя интерфейс —
+// ошибки тут не критичны и не показываются пользователю.
+async function registerView(kind, record) {
+  if (!currentIdentity || !record.owner_code) return;
+  if (record.owner_code === currentIdentity.code) return;
+  try {
+    await db.rpc("register_view", {
+      p_target_type: kind,
+      p_target_id: record.id,
+      p_target_name: record.name,
+      p_owner_code: record.owner_code,
+      p_viewer_code: currentIdentity.code,
+      p_viewer_name: currentIdentity.name,
+    });
+    refreshActivityBadge();
+  } catch (err) {
+    console.error("[activity] не удалось зарегистрировать просмотр:", err);
+  }
+}
+
+// Пишем событие в ленту активности напрямую (для комментариев и подарков,
+// у которых уже есть отдельная запись в своей таблице — здесь только
+// уведомление в ленте).
+async function logActivity(kindEvent, targetType, record, extra) {
+  if (!currentIdentity || !record.owner_code) return;
+  if (record.owner_code === currentIdentity.code) return;
+  try {
+    await db.from(ACTIVITY_TABLE).insert({
+      kind: kindEvent,
+      target_type: targetType,
+      target_id: record.id,
+      target_name: record.name,
+      owner_code: record.owner_code,
+      actor_code: currentIdentity.code,
+      actor_name: currentIdentity.name,
+      extra: extra || null,
+    });
+    refreshActivityBadge();
+  } catch (err) {
+    console.error("[activity] не удалось записать событие:", err);
+  }
+}
+
+async function refreshActivityBadge() {
+  if (!currentIdentity || !db) {
+    activityBadge.classList.add("hidden");
+    return;
+  }
+  const seenAt = getActivitySeenAt();
+  let query = db
+    .from(ACTIVITY_TABLE)
+    .select("id", { count: "exact", head: true })
+    .eq("owner_code", currentIdentity.code);
+  if (seenAt) query = query.gt("created_at", seenAt);
+
+  const { count, error } = await query;
+  if (error) return;
+
+  if (count && count > 0) {
+    activityBadge.textContent = count > 99 ? "99+" : String(count);
+    activityBadge.classList.remove("hidden");
+  } else {
+    activityBadge.classList.add("hidden");
+  }
+}
+
+function activityIcon(kind) {
+  if (kind === "view") return "👀";
+  if (kind === "comment") return "💬";
+  if (kind === "gift") return "🎁";
+  return "🔔";
+}
+
+function activityText(item) {
+  const who = `<b>${item.actor_name || "Кто-то"}</b>`;
+  const what = item.target_name ? `«${item.target_name}»` : "публикацию";
+  if (item.kind === "view") return `${who} посмотрел(а) твою публикацию ${what}`;
+  if (item.kind === "comment") return `${who} написал(а) комментарий под ${what}`;
+  if (item.kind === "gift") return `${who} отправил(а) тебе гиперзадку за ${what}`;
+  return `${who}: событие по ${what}`;
+}
+
+async function loadActivityFeed() {
+  if (!currentIdentity || !db) {
+    activityList.innerHTML = `<div class="activity-empty">Сначала введи своё имя 🐿️</div>`;
+    return;
+  }
+
+  const { data, error } = await db
+    .from(ACTIVITY_TABLE)
+    .select("*")
+    .eq("owner_code", currentIdentity.code)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (error) {
+    activityList.innerHTML = `<div class="activity-empty">Не удалось загрузить активность</div>`;
+    return;
+  }
+
+  const items = data || [];
+  if (!items.length) {
+    activityList.innerHTML = `<div class="activity-empty">Пока тихо 🐿️</div>`;
+    return;
+  }
+
+  activityList.innerHTML = items
+    .map(
+      (item, idx) => `
+        <div class="activity-item" data-idx="${idx}">
+          <div class="activity-item-icon">${activityIcon(item.kind)}</div>
+          <div class="activity-item-body">
+            <div class="activity-item-text">${activityText(item)}</div>
+            <div class="activity-item-time">${timeAgo(item.created_at)}</div>
+          </div>
+        </div>
+      `
+    )
+    .join("");
+
+  [...activityList.querySelectorAll(".activity-item")].forEach((el) => {
+    el.addEventListener("click", async () => {
+      const item = items[Number(el.dataset.idx)];
+      activityPanel.classList.add("hidden");
+      await goToPublication(item.target_type, item.target_id);
+    });
+  });
+}
+
+async function goToPublication(kind, targetId) {
+  if (kind === "photo") {
+    let record = allPhotoRecords.find((r) => r.id === targetId);
+    if (!record) {
+      switchTab("photo");
+      await loadPhotos();
+      record = allPhotoRecords.find((r) => r.id === targetId);
+    }
+    if (!record) {
+      showToast("Эта публикация больше не найдена 🐿️");
+      return;
+    }
+    switchTab("photo");
+    const idx = currentPhotoList.indexOf(record);
+    openLightbox(record, publicUrlFor(record.storage_path), idx === -1 ? undefined : idx);
+  } else {
+    let record = allVideoRecords.find((r) => r.id === targetId);
+    if (!record) {
+      switchTab("video");
+      await loadVideos();
+      record = allVideoRecords.find((r) => r.id === targetId);
+    }
+    if (!record) {
+      showToast("Эта публикация больше не найдена 🐿️");
+      return;
+    }
+    switchTab("video");
+    openVideoLightbox(record);
+  }
+}
+
+activityBellBtn.addEventListener("click", async () => {
+  const willOpen = activityPanel.classList.contains("hidden");
+  activityPanel.classList.toggle("hidden");
+  if (willOpen) {
+    await loadActivityFeed();
+    setActivitySeenNow();
+    activityBadge.classList.add("hidden");
+  }
+});
+
+activityCloseBtn.addEventListener("click", () => {
+  activityPanel.classList.add("hidden");
 });
 
 /* ---------- Старт ---------- */
@@ -1608,6 +1925,7 @@ async function boot() {
 
   videoUrlHint.textContent = SOURCE_HINTS.google_drive;
   refreshMyGigerBalance();
+  refreshActivityBadge();
   await loadCategories();
   await loadAllRatings();
 

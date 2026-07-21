@@ -113,14 +113,16 @@ const gigerEls = {
   photo: {
     box: document.getElementById("photoGigerBox"),
     checkbox: document.getElementById("photoGigerCheckbox"),
-    comment: document.getElementById("photoGigerComment"),
   },
   video: {
     box: document.getElementById("videoGigerBox"),
     checkbox: document.getElementById("videoGigerCheckbox"),
-    comment: document.getElementById("videoGigerComment"),
   },
 };
+
+// true, если текущий пользователь уже подарил гиперзадку текущей карточке
+// (в таком случае чекбокс вообще не показываем — дарить больше нечего)
+let alreadyGifted = { photo: false, video: false };
 
 let db = null;
 
@@ -990,16 +992,28 @@ async function submitRating(kind) {
     { onConflict: "target_type,target_id,rater_code" }
   );
 
-  btn.disabled = false;
-  btn.textContent = "Оценить";
-
   if (error) {
+    btn.disabled = false;
+    btn.textContent = "Оценить";
     showToast("Не удалось сохранить оценку: " + error.message);
     return;
   }
 
-  showToast("Оценка сохранена 🐿️");
+  // Если отмечена галочка "подарить гиперзадку" и человек ещё не дарил
+  // её этой карточке раньше — дарим вместе с оценкой.
+  const gEls = gigerEls[kind];
+  const record = kind === "photo" ? currentPhotoRecord : currentVideoRecord;
+  if (gEls.checkbox.checked && !alreadyGifted[kind] && record) {
+    await sendGiger(kind, record, ratingEls[kind].comment.value.trim());
+  } else {
+    showToast("Оценка сохранена 🐿️");
+  }
+
+  btn.disabled = false;
+  btn.textContent = "Оценить";
+
   loadRatings(kind, currentRatingTarget[kind]);
+  loadGiftState(kind, record);
 }
 
 ratingEls.photo.submit.addEventListener("click", () => submitRating("photo"));
@@ -1040,8 +1054,8 @@ async function creditGigersForPublish(kind) {
 
 async function loadGiftState(kind, record) {
   const els = gigerEls[kind];
-  els.comment.value = "";
   els.checkbox.checked = false;
+  alreadyGifted[kind] = false;
 
   const noOwner = !record.owner_code;
   const isSelf = currentIdentity && record.owner_code === currentIdentity.code;
@@ -1050,9 +1064,11 @@ async function loadGiftState(kind, record) {
     els.box.classList.add("hidden");
     return;
   }
-  els.box.classList.remove("hidden");
 
-  if (!currentIdentity) return;
+  if (!currentIdentity) {
+    els.box.classList.remove("hidden");
+    return;
+  }
 
   const { data, error } = await db
     .from(GIGER_GIFTS_TABLE)
@@ -1063,95 +1079,48 @@ async function loadGiftState(kind, record) {
     .maybeSingle();
 
   if (!error && data) {
-    els.checkbox.checked = true;
-    els.comment.value = data.comment || "";
+    // Уже подарил раньше — прятать чекбокс совсем, дарить больше нечего
+    alreadyGifted[kind] = true;
+    els.box.classList.add("hidden");
+  } else {
+    els.box.classList.remove("hidden");
   }
 }
 
-function bindGigerCheckbox(kind) {
-  const els = gigerEls[kind];
-
-  els.checkbox.addEventListener("change", async () => {
-    const record = kind === "photo" ? currentPhotoRecord : currentVideoRecord;
-    if (!record || !currentIdentity) {
-      els.checkbox.checked = false;
-      return;
-    }
-
-    if (els.checkbox.checked) {
-      els.checkbox.disabled = true;
-      const { data, error } = await db.rpc("giger_gift", {
-        p_giver_code: currentIdentity.code,
-        p_giver_name: currentIdentity.name,
-        p_owner_code: record.owner_code,
-        p_owner_name: record.owner_name,
-      });
-      els.checkbox.disabled = false;
-
-      if (error || data === false) {
-        els.checkbox.checked = false;
-        showToast(data === false ? "У тебя нет гиперзадок, чтобы подарить 🐿️" : "Не удалось подарить: " + (error?.message || ""));
-        return;
-      }
-
-      const { error: insertErr } = await db.from(GIGER_GIFTS_TABLE).insert({
-        target_type: kind,
-        target_id: record.id,
-        giver_code: currentIdentity.code,
-        giver_name: currentIdentity.name,
-        owner_code: record.owner_code,
-        comment: els.comment.value.trim() || null,
-      });
-
-      if (insertErr) {
-        await db.rpc("giger_ungift", { p_giver_code: currentIdentity.code, p_owner_code: record.owner_code });
-        els.checkbox.checked = false;
-        showToast("Не удалось сохранить подарок: " + insertErr.message);
-        return;
-      }
-
-      showToast("Гиперзадка подарена 🎁");
-      refreshMyGigerBalance();
-    } else {
-      els.checkbox.disabled = true;
-      const { error: delErr } = await db
-        .from(GIGER_GIFTS_TABLE)
-        .delete()
-        .eq("target_type", kind)
-        .eq("target_id", record.id)
-        .eq("giver_code", currentIdentity.code);
-
-      if (delErr) {
-        els.checkbox.disabled = false;
-        els.checkbox.checked = true;
-        showToast("Не удалось убрать подарок: " + delErr.message);
-        return;
-      }
-
-      await db.rpc("giger_ungift", { p_giver_code: currentIdentity.code, p_owner_code: record.owner_code });
-      els.checkbox.disabled = false;
-
-      gigerRemoveSound.currentTime = 0;
-      gigerRemoveSound.play().catch(() => {});
-      showToast("Гиперзадку убрали 😔");
-      refreshMyGigerBalance();
-    }
+// Отправляет подарок гиперзадки для карточки (вызывается только из submitRating,
+// вместе с отправкой оценки/комментария — отдельно чекбокс ничего не шлёт).
+async function sendGiger(kind, record, comment) {
+  const { data, error } = await db.rpc("giger_gift", {
+    p_giver_code: currentIdentity.code,
+    p_giver_name: currentIdentity.name,
+    p_owner_code: record.owner_code,
+    p_owner_name: record.owner_name,
   });
 
-  els.comment.addEventListener("blur", async () => {
-    const record = kind === "photo" ? currentPhotoRecord : currentVideoRecord;
-    if (!record || !currentIdentity || !els.checkbox.checked) return;
-    await db
-      .from(GIGER_GIFTS_TABLE)
-      .update({ comment: els.comment.value.trim() || null })
-      .eq("target_type", kind)
-      .eq("target_id", record.id)
-      .eq("giver_code", currentIdentity.code);
+  if (error || data === false) {
+    showToast(data === false ? "У тебя нет гиперзадок, чтобы подарить 🐿️" : "Не удалось подарить: " + (error?.message || ""));
+    return false;
+  }
+
+  const { error: insertErr } = await db.from(GIGER_GIFTS_TABLE).insert({
+    target_type: kind,
+    target_id: record.id,
+    giver_code: currentIdentity.code,
+    giver_name: currentIdentity.name,
+    owner_code: record.owner_code,
+    comment: comment || null,
   });
+
+  if (insertErr) {
+    await db.rpc("giger_ungift", { p_giver_code: currentIdentity.code, p_owner_code: record.owner_code });
+    showToast("Не удалось сохранить подарок: " + insertErr.message);
+    return false;
+  }
+
+  showToast("Оценка сохранена, гиперзадка подарена 🎁");
+  refreshMyGigerBalance();
+  return true;
 }
-
-bindGigerCheckbox("photo");
-bindGigerCheckbox("video");
 
 /* ==================================================================
    ССЫЛКИ НА КАРТОЧКУ (поделиться конкретным фото/видео)

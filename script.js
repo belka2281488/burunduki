@@ -1024,7 +1024,7 @@ async function refreshMyGigerBalance() {
     return;
   }
   const count = data ? data.count : 0;
-  whoAmIGigers.innerHTML = `<img src="assets/giperzadka.png" alt="гиперзадка"> ${count}`;
+  whoAmIGigers.innerHTML = `<img src="assets/giperzadka.png" alt="гиперзадка" style="width:15px;height:15px;object-fit:contain;flex-shrink:0;"> ${count}`;
 }
 
 async function creditGigersForPublish(kind) {

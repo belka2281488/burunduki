@@ -13,6 +13,7 @@
   <p class="subtitle">Все бурундуки Кирила в одном месте</p>
   <div class="who-am-i">
     Ты: <span id="whoAmI">—</span>
+    <span class="giger-badge" id="whoAmIGigers" title="Твои гиперзадки"></span>
     <button id="changeNameBtn" class="link-btn">сменить имя</button>
   </div>
 </header>
@@ -158,6 +159,15 @@
       <button id="photoRatingSubmit" class="pick-btn small">Оценить</button>
     </div>
 
+    <div class="giger-gift-box" id="photoGigerBox">
+      <label class="giger-gift-toggle">
+        <input type="checkbox" id="photoGigerCheckbox">
+        <img src="assets/giperzadka.png" class="giger-gift-icon" alt="гиперзадка">
+        <span>Подарить гиперзадку автору</span>
+      </label>
+      <textarea id="photoGigerComment" class="modal-input modal-textarea rating-comment-input" placeholder="Комментарий к подарку (необязательно)"></textarea>
+    </div>
+
     <div class="rating-comments" id="photoRatingComments"></div>
   </div>
 </div>
@@ -196,11 +206,21 @@
       <button id="videoRatingSubmit" class="pick-btn small">Оценить</button>
     </div>
 
+    <div class="giger-gift-box" id="videoGigerBox">
+      <label class="giger-gift-toggle">
+        <input type="checkbox" id="videoGigerCheckbox">
+        <img src="assets/giperzadka.png" class="giger-gift-icon" alt="гиперзадка">
+        <span>Подарить гиперзадку автору</span>
+      </label>
+      <textarea id="videoGigerComment" class="modal-input modal-textarea rating-comment-input" placeholder="Комментарий к подарку (необязательно)"></textarea>
+    </div>
+
     <div class="rating-comments" id="videoRatingComments"></div>
   </div>
 </div>
 
 <div id="toast" class="toast"></div>
+<audio id="gigerRemoveSound" src="assets/giperzadka-remove.mp3" preload="auto"></audio>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="config.js"></script>

@@ -1,6 +1,8 @@
 const PHOTO_TABLE = "burunduki";
 const VIDEO_TABLE = "burunduki_videos";
 const RATING_TABLE = "burunduk_ratings";
+const GIGER_TABLE = "burunduk_gigers";
+const GIGER_GIFTS_TABLE = "burunduk_giger_gifts";
 
 /* ---------- Ранги оценки (вместо звёзд) ---------- */
 const RANK_LEVELS = [
@@ -27,6 +29,8 @@ const deleteCancel = document.getElementById("deleteCancel");
 const deleteConfirm = document.getElementById("deleteConfirm");
 const searchInput = document.getElementById("searchInput");
 const whoAmIEl = document.getElementById("whoAmI");
+const whoAmIGigers = document.getElementById("whoAmIGigers");
+const gigerRemoveSound = document.getElementById("gigerRemoveSound");
 const changeNameBtn = document.getElementById("changeNameBtn");
 const nameModal = document.getElementById("nameModal");
 const nameInput = document.getElementById("nameInput");
@@ -104,6 +108,20 @@ const ratingEls = {
 let selectedRank = { photo: null, video: null };
 let currentRatingTarget = { photo: null, video: null };
 
+/* ---------- DOM: гиперзадки ---------- */
+const gigerEls = {
+  photo: {
+    box: document.getElementById("photoGigerBox"),
+    checkbox: document.getElementById("photoGigerCheckbox"),
+    comment: document.getElementById("photoGigerComment"),
+  },
+  video: {
+    box: document.getElementById("videoGigerBox"),
+    checkbox: document.getElementById("videoGigerCheckbox"),
+    comment: document.getElementById("videoGigerComment"),
+  },
+};
+
 let db = null;
 
 /* ==================================================================
@@ -157,6 +175,7 @@ nameConfirm.addEventListener("click", () => {
   nameModal.classList.remove("active");
   nameInput.value = "";
   refreshWhoAmI();
+  refreshMyGigerBalance();
 });
 
 changeNameBtn.addEventListener("click", () => {
@@ -402,6 +421,7 @@ uploadConfirm.addEventListener("click", async () => {
   fileInput.value = "";
   currentPickedFile = null;
   showToast("Бурундук добавлен в галерею 🐿️");
+  creditGigersForPublish("photo");
   loadPhotos();
 });
 
@@ -442,6 +462,7 @@ function openLightbox(record, src) {
 
   lightbox.classList.add("active");
   loadRatings("photo", record.id);
+  loadGiftState("photo", record);
 }
 
 function closeLightbox() {
@@ -695,6 +716,7 @@ function openVideoLightbox(record) {
 
   videoLightbox.classList.add("active");
   loadRatings("video", record.id);
+  loadGiftState("video", record);
 }
 
 function closeVideoLightbox() {
@@ -795,6 +817,7 @@ videoConfirm.addEventListener("click", async () => {
 
   videoModal.classList.remove("active");
   showToast("Видео добавлено в галерею 🎬");
+  creditGigersForPublish("video");
   loadVideos();
 });
 
@@ -983,6 +1006,154 @@ ratingEls.photo.submit.addEventListener("click", () => submitRating("photo"));
 ratingEls.video.submit.addEventListener("click", () => submitRating("video"));
 
 /* ==================================================================
+   ГИПЕРЗАДКИ (валюта: +1 за фото, +2 за видео, можно дарить авторам)
+   ================================================================== */
+async function refreshMyGigerBalance() {
+  if (!currentIdentity || !db) {
+    whoAmIGigers.innerHTML = "";
+    return;
+  }
+  const { data, error } = await db
+    .from(GIGER_TABLE)
+    .select("count")
+    .eq("owner_code", currentIdentity.code)
+    .maybeSingle();
+
+  if (error) {
+    whoAmIGigers.innerHTML = "";
+    return;
+  }
+  const count = data ? data.count : 0;
+  whoAmIGigers.innerHTML = `<img src="assets/giperzadka.png" alt="гиперзадка"> ${count}`;
+}
+
+async function creditGigersForPublish(kind) {
+  if (!currentIdentity) return;
+  const delta = kind === "video" ? 2 : 1;
+  await db.rpc("giger_add", {
+    p_code: currentIdentity.code,
+    p_name: currentIdentity.name,
+    p_delta: delta,
+  });
+  refreshMyGigerBalance();
+}
+
+async function loadGiftState(kind, record) {
+  const els = gigerEls[kind];
+  els.comment.value = "";
+  els.checkbox.checked = false;
+
+  const noOwner = !record.owner_code;
+  const isSelf = currentIdentity && record.owner_code === currentIdentity.code;
+
+  if (noOwner || isSelf) {
+    els.box.classList.add("hidden");
+    return;
+  }
+  els.box.classList.remove("hidden");
+
+  if (!currentIdentity) return;
+
+  const { data, error } = await db
+    .from(GIGER_GIFTS_TABLE)
+    .select("*")
+    .eq("target_type", kind)
+    .eq("target_id", record.id)
+    .eq("giver_code", currentIdentity.code)
+    .maybeSingle();
+
+  if (!error && data) {
+    els.checkbox.checked = true;
+    els.comment.value = data.comment || "";
+  }
+}
+
+function bindGigerCheckbox(kind) {
+  const els = gigerEls[kind];
+
+  els.checkbox.addEventListener("change", async () => {
+    const record = kind === "photo" ? currentPhotoRecord : currentVideoRecord;
+    if (!record || !currentIdentity) {
+      els.checkbox.checked = false;
+      return;
+    }
+
+    if (els.checkbox.checked) {
+      els.checkbox.disabled = true;
+      const { data, error } = await db.rpc("giger_gift", {
+        p_giver_code: currentIdentity.code,
+        p_giver_name: currentIdentity.name,
+        p_owner_code: record.owner_code,
+        p_owner_name: record.owner_name,
+      });
+      els.checkbox.disabled = false;
+
+      if (error || data === false) {
+        els.checkbox.checked = false;
+        showToast(data === false ? "У тебя нет гиперзадок, чтобы подарить 🐿️" : "Не удалось подарить: " + (error?.message || ""));
+        return;
+      }
+
+      const { error: insertErr } = await db.from(GIGER_GIFTS_TABLE).insert({
+        target_type: kind,
+        target_id: record.id,
+        giver_code: currentIdentity.code,
+        giver_name: currentIdentity.name,
+        owner_code: record.owner_code,
+        comment: els.comment.value.trim() || null,
+      });
+
+      if (insertErr) {
+        await db.rpc("giger_ungift", { p_giver_code: currentIdentity.code, p_owner_code: record.owner_code });
+        els.checkbox.checked = false;
+        showToast("Не удалось сохранить подарок: " + insertErr.message);
+        return;
+      }
+
+      showToast("Гиперзадка подарена 🎁");
+      refreshMyGigerBalance();
+    } else {
+      els.checkbox.disabled = true;
+      const { error: delErr } = await db
+        .from(GIGER_GIFTS_TABLE)
+        .delete()
+        .eq("target_type", kind)
+        .eq("target_id", record.id)
+        .eq("giver_code", currentIdentity.code);
+
+      if (delErr) {
+        els.checkbox.disabled = false;
+        els.checkbox.checked = true;
+        showToast("Не удалось убрать подарок: " + delErr.message);
+        return;
+      }
+
+      await db.rpc("giger_ungift", { p_giver_code: currentIdentity.code, p_owner_code: record.owner_code });
+      els.checkbox.disabled = false;
+
+      gigerRemoveSound.currentTime = 0;
+      gigerRemoveSound.play().catch(() => {});
+      showToast("Гиперзадку убрали 😔");
+      refreshMyGigerBalance();
+    }
+  });
+
+  els.comment.addEventListener("blur", async () => {
+    const record = kind === "photo" ? currentPhotoRecord : currentVideoRecord;
+    if (!record || !currentIdentity || !els.checkbox.checked) return;
+    await db
+      .from(GIGER_GIFTS_TABLE)
+      .update({ comment: els.comment.value.trim() || null })
+      .eq("target_type", kind)
+      .eq("target_id", record.id)
+      .eq("giver_code", currentIdentity.code);
+  });
+}
+
+bindGigerCheckbox("photo");
+bindGigerCheckbox("video");
+
+/* ==================================================================
    ССЫЛКИ НА КАРТОЧКУ (поделиться конкретным фото/видео)
    ================================================================== */
 const CYR_TO_LAT = {
@@ -1114,6 +1285,7 @@ async function boot() {
   if (!initSupabase()) return;
 
   videoUrlHint.textContent = SOURCE_HINTS.google_drive;
+  refreshMyGigerBalance();
 
   const shared = parseShareHash();
   const wantVideo = shared && shared.kind === "video";

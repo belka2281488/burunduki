@@ -4,6 +4,9 @@ const CATEGORY_TABLE = "burunduk_categories";
 
 let allCategories = [];
 let currentCategoryFilter = "all";
+let currentAuthorFilter = "all";
+let currentSort = "date_desc";
+let allRatingsMap = {}; // "photo:<id>" / "video:<id>" -> { avg, count }
 const RATING_TABLE = "burunduk_ratings";
 const GIGER_TABLE = "burunduk_gigers";
 const GIGER_GIFTS_TABLE = "burunduk_giger_gifts";
@@ -32,6 +35,8 @@ const deleteModal = document.getElementById("deleteModal");
 const deleteCancel = document.getElementById("deleteCancel");
 const deleteConfirm = document.getElementById("deleteConfirm");
 const searchInput = document.getElementById("searchInput");
+const authorFilterEl = document.getElementById("authorFilter");
+const sortSelectEl = document.getElementById("sortSelect");
 const whoAmIEl = document.getElementById("whoAmI");
 const whoAmIGigers = document.getElementById("whoAmIGigers");
 const gigerRemoveSound = document.getElementById("gigerRemoveSound");
@@ -272,9 +277,13 @@ function applySearch() {
     if (currentCategoryFilter !== "all") {
       base = base.filter(r => r.category_id === currentCategoryFilter);
     }
-    const filtered = query
+    if (currentAuthorFilter !== "all") {
+      base = base.filter(r => r.owner_code === currentAuthorFilter);
+    }
+    let filtered = query
       ? base.filter(r => r.name.toLowerCase().includes(query))
       : base;
+    filtered = applySort(filtered, "photo");
     statusEl.textContent = query
       ? `Найдено: ${filtered.length}`
       : `Фото в галерее: ${filtered.length}`;
@@ -285,9 +294,13 @@ function applySearch() {
     if (currentCategoryFilter !== "all") {
       base = base.filter(r => r.category_id === currentCategoryFilter);
     }
-    const filtered = query
+    if (currentAuthorFilter !== "all") {
+      base = base.filter(r => r.owner_code === currentAuthorFilter);
+    }
+    let filtered = query
       ? base.filter(r => r.name.toLowerCase().includes(query))
       : base;
+    filtered = applySort(filtered, "video");
     statusEl.textContent = query
       ? `Найдено: ${filtered.length}`
       : `Видео в галерее: ${filtered.length}`;
@@ -380,6 +393,118 @@ function renderCategoryTabs() {
   });
 }
 
+/* ==================================================================
+   ВСЕ РЕЙТИНГИ (для сортировки галереи по оценке)
+   ================================================================== */
+async function loadAllRatings() {
+  const { data, error } = await db.from(RATING_TABLE).select("target_type, target_id, rank");
+  if (error) return;
+
+  const sums = {};
+  (data || []).forEach((r) => {
+    const key = `${r.target_type}:${r.target_id}`;
+    if (!sums[key]) sums[key] = { sum: 0, count: 0 };
+    sums[key].sum += r.rank;
+    sums[key].count += 1;
+  });
+
+  allRatingsMap = {};
+  Object.keys(sums).forEach((key) => {
+    allRatingsMap[key] = { avg: sums[key].sum / sums[key].count, count: sums[key].count };
+  });
+}
+
+function getAvgRating(kind, id) {
+  const entry = allRatingsMap[`${kind}:${id}`];
+  return entry ? entry.avg : null;
+}
+
+/* ==================================================================
+   ФИЛЬТР ПО АВТОРУ И СОРТИРОВКА
+   ================================================================== */
+function fillAuthorFilter() {
+  if (!authorFilterEl) return;
+  const names = new Map(); // owner_code -> owner_name
+
+  allPhotoRecords.forEach((r) => { if (r.owner_code && r.owner_name) names.set(r.owner_code, r.owner_name); });
+  allVideoRecords.forEach((r) => { if (r.owner_code && r.owner_name) names.set(r.owner_code, r.owner_name); });
+
+  const prev = authorFilterEl.value || "all";
+  authorFilterEl.innerHTML = `<option value="all">Все авторы</option>`;
+  [...names.entries()]
+    .sort((a, b) => a[1].localeCompare(b[1], "ru"))
+    .forEach(([code, name]) => {
+      const opt = document.createElement("option");
+      opt.value = code;
+      opt.textContent = name;
+      authorFilterEl.appendChild(opt);
+    });
+  authorFilterEl.value = [...names.keys()].includes(prev) || prev === "all" ? prev : "all";
+}
+
+if (authorFilterEl) {
+  authorFilterEl.addEventListener("change", () => {
+    currentAuthorFilter = authorFilterEl.value;
+    applySearch();
+  });
+}
+
+if (sortSelectEl) {
+  sortSelectEl.addEventListener("change", () => {
+    currentSort = sortSelectEl.value;
+    applySearch();
+  });
+}
+
+function applySort(records, kind) {
+  const sorted = [...records];
+  switch (currentSort) {
+    case "date_asc":
+      sorted.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+      break;
+    case "name_asc":
+      sorted.sort((a, b) => a.name.localeCompare(b.name, "ru"));
+      break;
+    case "name_desc":
+      sorted.sort((a, b) => b.name.localeCompare(a.name, "ru"));
+      break;
+    case "rating_desc":
+      sorted.sort((a, b) => {
+        const ra = getAvgRating(kind, a.id);
+        const rb = getAvgRating(kind, b.id);
+        if (ra === null && rb === null) return 0;
+        if (ra === null) return 1;
+        if (rb === null) return -1;
+        return rb - ra;
+      });
+      break;
+    case "rating_asc":
+      sorted.sort((a, b) => {
+        const ra = getAvgRating(kind, a.id);
+        const rb = getAvgRating(kind, b.id);
+        if (ra === null && rb === null) return 0;
+        if (ra === null) return 1;
+        if (rb === null) return -1;
+        return ra - rb;
+      });
+      break;
+    case "rating_none":
+      sorted.sort((a, b) => {
+        const ra = getAvgRating(kind, a.id);
+        const rb = getAvgRating(kind, b.id);
+        const aNone = ra === null ? 0 : 1;
+        const bNone = rb === null ? 0 : 1;
+        return aNone - bNone;
+      });
+      break;
+    case "date_desc":
+    default:
+      sorted.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      break;
+  }
+  return sorted;
+}
+
 // Создаёт заявку на новый раздел (status = pending) и возвращает её id,
 // чтобы сразу привязать фото к этой заявке. Если админ одобрит раздел,
 // фото само "станет видно" всем, т.к. категория сменит статус.
@@ -413,6 +538,7 @@ async function loadPhotos() {
   }
 
   allPhotoRecords = data || [];
+  fillAuthorFilter();
 
   if (!allPhotoRecords.length) {
     statusEl.textContent = "Пока нет ни одного фото — добавь первое!";
@@ -775,6 +901,7 @@ async function loadVideos() {
   }
 
   allVideoRecords = data || [];
+  fillAuthorFilter();
 
   if (!allVideoRecords.length) {
     statusEl.textContent = "Пока нет ни одного видео — добавь первое!";
@@ -1214,6 +1341,7 @@ async function submitRating(kind) {
 
   loadRatings(kind, currentRatingTarget[kind]);
   loadGiftState(kind, record);
+  loadAllRatings();
 }
 
 ratingEls.photo.submit.addEventListener("click", () => submitRating("photo"));
@@ -1473,6 +1601,7 @@ async function boot() {
   videoUrlHint.textContent = SOURCE_HINTS.google_drive;
   refreshMyGigerBalance();
   await loadCategories();
+  await loadAllRatings();
 
   const shared = parseShareHash();
   const wantVideo = shared && shared.kind === "video";

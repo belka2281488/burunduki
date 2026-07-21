@@ -74,18 +74,33 @@ main {
 }
 
 .search-wrap {
-  text-align: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
   margin-bottom: 14px;
 }
 
 .search-input {
-  width: 100%;
+  flex: 1;
+  min-width: 200px;
   max-width: 360px;
   padding: 10px 16px;
   border-radius: 20px;
   border: 1px solid #e0c9a8;
   font-size: 0.95rem;
   background: #fff;
+}
+
+.filter-select {
+  padding: 10px 14px;
+  border-radius: 20px;
+  border: 1px solid #e0c9a8;
+  font-size: 0.9rem;
+  background: #fff;
+  color: #5a3a1a;
+  cursor: pointer;
 }
 
 .owner-tag {

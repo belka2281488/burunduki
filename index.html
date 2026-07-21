@@ -26,6 +26,18 @@
 
   <div class="search-wrap">
     <input type="text" id="searchInput" class="search-input" placeholder="🔍 Поиск по имени...">
+    <select id="authorFilter" class="filter-select">
+      <option value="all">Все авторы</option>
+    </select>
+    <select id="sortSelect" class="filter-select">
+      <option value="date_desc">Сначала новые</option>
+      <option value="date_asc">Сначала старые</option>
+      <option value="name_asc">Имя: А → Я</option>
+      <option value="name_desc">Имя: Я → А</option>
+      <option value="rating_desc">Оценка: сначала лучшие</option>
+      <option value="rating_asc">Оценка: сначала худшие</option>
+      <option value="rating_none">Сначала неоценённые</option>
+    </select>
   </div>
 
   <div class="category-tabs" id="categoryTabs"></div>

@@ -28,6 +28,8 @@
     <input type="text" id="searchInput" class="search-input" placeholder="🔍 Поиск по имени...">
   </div>
 
+  <div class="category-tabs" id="categoryTabs"></div>
+
   <div class="pick-wrap">
     <button id="uploadPhotoBtn" class="pick-btn">➕ Добавить бурундука</button>
     <button id="uploadVideoBtn" class="pick-btn hidden">➕ Добавить видео</button>
@@ -65,6 +67,13 @@
 
     <label class="modal-label">Описание (необязательно)</label>
     <textarea id="uploadDescription" class="modal-input modal-textarea" placeholder="например: найден на кухне в 3 часа ночи"></textarea>
+
+    <label class="modal-label">Раздел</label>
+    <select id="uploadCategory" class="modal-input"></select>
+    <div id="newCategoryWrap" class="hidden">
+      <input type="text" id="newCategoryName" class="modal-input" placeholder="название нового раздела">
+      <div class="modal-hint">Появится у всех только после одобрения в админ-панельке.</div>
+    </div>
 
     <div class="modal-actions">
       <button id="uploadCancel" class="tool-btn">Отмена</button>

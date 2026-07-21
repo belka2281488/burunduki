@@ -1,5 +1,9 @@
 const PHOTO_TABLE = "burunduki";
 const VIDEO_TABLE = "burunduki_videos";
+const CATEGORY_TABLE = "burunduk_categories";
+
+let allCategories = [];
+let currentCategoryFilter = "all";
 const RATING_TABLE = "burunduk_ratings";
 const GIGER_TABLE = "burunduk_gigers";
 const GIGER_GIFTS_TABLE = "burunduk_giger_gifts";
@@ -45,6 +49,11 @@ const uploadName = document.getElementById("uploadName");
 const uploadDescription = document.getElementById("uploadDescription");
 const uploadCancel = document.getElementById("uploadCancel");
 const uploadConfirm = document.getElementById("uploadConfirm");
+const uploadCategory = document.getElementById("uploadCategory");
+const newCategoryWrap = document.getElementById("newCategoryWrap");
+const newCategoryName = document.getElementById("newCategoryName");
+const categoryTabsEl = document.getElementById("categoryTabs");
+const NEW_CATEGORY_VALUE = "__new__";
 
 const lightbox = document.getElementById("lightbox");
 const lightboxImg = document.getElementById("lightboxImg");
@@ -255,12 +264,17 @@ function applySearch() {
   const query = searchInput.value.trim().toLowerCase();
 
   if (currentTab === "photo") {
+    const approvedCategoryIds = new Set(allCategories.map(c => c.id));
+    let base = allPhotoRecords.filter(r => !r.category_id || approvedCategoryIds.has(r.category_id));
+    if (currentCategoryFilter !== "all") {
+      base = base.filter(r => r.category_id === currentCategoryFilter);
+    }
     const filtered = query
-      ? allPhotoRecords.filter(r => r.name.toLowerCase().includes(query))
-      : allPhotoRecords;
+      ? base.filter(r => r.name.toLowerCase().includes(query))
+      : base;
     statusEl.textContent = query
       ? `Найдено: ${filtered.length}`
-      : `Фото в галерее: ${allPhotoRecords.length}`;
+      : `Фото в галерее: ${filtered.length}`;
     renderPhotoGallery(filtered);
   } else {
     const filtered = query
@@ -278,6 +292,93 @@ searchInput.addEventListener("input", applySearch);
 /* ==================================================================
    ФОТО
    ================================================================== */
+/* ==================================================================
+   РАЗДЕЛЫ (категории фото)
+   ================================================================== */
+async function loadCategories() {
+  const { data, error } = await db
+    .from(CATEGORY_TABLE)
+    .select("*")
+    .eq("status", "approved")
+    .order("created_at", { ascending: true });
+
+  if (error) return;
+  allCategories = data || [];
+  fillCategorySelect();
+  renderCategoryTabs();
+}
+
+function fillCategorySelect() {
+  if (!uploadCategory) return;
+  uploadCategory.innerHTML = "";
+  allCategories.forEach((cat) => {
+    const opt = document.createElement("option");
+    opt.value = cat.id;
+    opt.textContent = cat.name;
+    uploadCategory.appendChild(opt);
+  });
+  const newOpt = document.createElement("option");
+  newOpt.value = NEW_CATEGORY_VALUE;
+  newOpt.textContent = "➕ Создать свой раздел...";
+  uploadCategory.appendChild(newOpt);
+}
+
+if (uploadCategory) {
+  uploadCategory.addEventListener("change", () => {
+    if (uploadCategory.value === NEW_CATEGORY_VALUE) {
+      newCategoryWrap.classList.remove("hidden");
+    } else {
+      newCategoryWrap.classList.add("hidden");
+    }
+  });
+}
+
+function renderCategoryTabs() {
+  if (!categoryTabsEl) return;
+  categoryTabsEl.innerHTML = "";
+
+  const allBtn = document.createElement("button");
+  allBtn.className = "category-tab" + (currentCategoryFilter === "all" ? " active" : "");
+  allBtn.textContent = "Все разделы";
+  allBtn.addEventListener("click", () => {
+    currentCategoryFilter = "all";
+    renderCategoryTabs();
+    applySearch();
+  });
+  categoryTabsEl.appendChild(allBtn);
+
+  allCategories.forEach((cat) => {
+    const btn = document.createElement("button");
+    btn.className = "category-tab" + (currentCategoryFilter === cat.id ? " active" : "");
+    btn.textContent = cat.name;
+    btn.addEventListener("click", () => {
+      currentCategoryFilter = cat.id;
+      renderCategoryTabs();
+      applySearch();
+    });
+    categoryTabsEl.appendChild(btn);
+  });
+}
+
+// Создаёт заявку на новый раздел (status = pending) и возвращает её id,
+// чтобы сразу привязать фото к этой заявке. Если админ одобрит раздел,
+// фото само "станет видно" всем, т.к. категория сменит статус.
+async function createPendingCategory(name, ownerName, ownerCode) {
+  const { data, error } = await db
+    .from(CATEGORY_TABLE)
+    .insert({
+      name,
+      status: "pending",
+      created_by_name: ownerName || null,
+      created_by_code: ownerCode || null,
+    })
+    .select()
+    .single();
+
+  if (error) return null;
+  return data;
+}
+
 async function loadPhotos() {
   statusEl.textContent = "Загружаю бурундуков...";
 
@@ -338,6 +439,9 @@ uploadPhotoBtn.addEventListener("click", () => {
   uploadName.value = "";
   uploadDescription.value = "";
   currentPickedFile = null;
+  if (uploadCategory) uploadCategory.value = allCategories[0] ? allCategories[0].id : NEW_CATEGORY_VALUE;
+  if (newCategoryWrap) newCategoryWrap.classList.add("hidden");
+  if (newCategoryName) newCategoryName.value = "";
   fileInput.click();
 });
 
@@ -387,6 +491,37 @@ uploadConfirm.addEventListener("click", async () => {
   }
 
   if (!currentPickedFile) return;
+
+  let categoryId = uploadCategory ? uploadCategory.value : null;
+  let isNewPendingCategory = false;
+
+  if (categoryId === NEW_CATEGORY_VALUE) {
+    const newName = (newCategoryName.value || "").trim();
+    if (!newName) {
+      showToast("Введи название нового раздела");
+      uploadConfirm.disabled = false;
+      return;
+    }
+    uploadConfirm.textContent = "Отправляю заявку на раздел...";
+    const created = await createPendingCategory(
+      newName,
+      currentIdentity ? currentIdentity.name : null,
+      currentIdentity ? currentIdentity.code : null
+    );
+    if (!created) {
+      showToast("Не удалось создать раздел, попробуй ещё раз");
+      uploadConfirm.disabled = false;
+      uploadConfirm.textContent = "Добавить в галерею";
+      return;
+    }
+    categoryId = created.id;
+    isNewPendingCategory = true;
+  } else if (!categoryId) {
+    showToast("Выбери раздел");
+    uploadConfirm.disabled = false;
+    return;
+  }
+
   uploadConfirm.textContent = "Загружаю...";
 
   const ext = (currentPickedFile.name.split(".").pop() || "png").toLowerCase();
@@ -409,6 +544,7 @@ uploadConfirm.addEventListener("click", async () => {
     description: description || null,
     owner_name: currentIdentity ? currentIdentity.name : null,
     owner_code: currentIdentity ? currentIdentity.code : null,
+    category_id: categoryId,
   });
 
   uploadConfirm.disabled = false;
@@ -422,7 +558,11 @@ uploadConfirm.addEventListener("click", async () => {
   uploadModal.classList.remove("active");
   fileInput.value = "";
   currentPickedFile = null;
-  showToast("Бурундук добавлен в галерею 🐿️");
+  if (isNewPendingCategory) {
+    showToast("Фото загружено, раздел на рассмотрении у админа 🕓");
+  } else {
+    showToast("Бурундук добавлен в галерею 🐿️");
+  }
   creditGigersForPublish("photo");
   loadPhotos();
 });
@@ -1272,6 +1412,7 @@ async function boot() {
 
   videoUrlHint.textContent = SOURCE_HINTS.google_drive;
   refreshMyGigerBalance();
+  await loadCategories();
 
   const shared = parseShareHash();
   const wantVideo = shared && shared.kind === "video";

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Админка бурундуков 🛠️</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="admin.css">
+</head>
+<body class="admin-body">
+
+<header class="header">
+  <h1>🛠️ Админ-панелька бурундуков</h1>
+  <p class="subtitle">Только для своих, ссылка секретная — никому не кидай</p>
+</header>
+
+<main class="admin-main">
+
+  <section class="admin-section" id="section-pending-categories">
+    <h2>🕓 Заявки на новые разделы</h2>
+    <div id="pendingCategoriesList" class="admin-list">Загружаю...</div>
+  </section>
+
+  <section class="admin-section" id="section-categories">
+    <h2>📁 Все разделы</h2>
+    <div class="admin-add-row">
+      <input type="text" id="newCategoryDirectInput" class="modal-input" placeholder="название нового раздела (сразу одобренный)">
+      <button id="addCategoryDirectBtn" class="pick-btn small">Добавить раздел</button>
+    </div>
+    <div id="categoriesList" class="admin-list">Загружаю...</div>
+  </section>
+
+  <section class="admin-section" id="section-photos">
+    <h2>🖼️ Все фото</h2>
+    <div class="admin-filter-row">
+      <input type="text" id="photoSearch" class="search-input" placeholder="🔍 Поиск по имени...">
+      <select id="photoCategoryFilter" class="modal-input"></select>
+    </div>
+    <div id="photosList" class="admin-list">Загружаю...</div>
+  </section>
+
+  <section class="admin-section" id="section-users">
+    <h2>👥 Пользователи (авторы)</h2>
+    <p class="admin-hint">Список всех owner_code/owner_name, встреченных в фото и видео. Можно переименовать автора везде разом — полезно для старых фото без автора.</p>
+    <div id="usersList" class="admin-list">Загружаю...</div>
+  </section>
+
+</main>
+
+<!-- модалка редактирования фото -->
+<div id="editPhotoModal" class="modal">
+  <div class="modal-box">
+    <h3>Редактировать фото</h3>
+    <div class="modal-preview-wrap">
+      <img id="editPhotoPreview" class="modal-preview" alt="превью">
+    </div>
+    <label class="modal-label">Название</label>
+    <input type="text" id="editPhotoName" class="modal-input">
+    <label class="modal-label">Описание</label>
+    <textarea id="editPhotoDescription" class="modal-input modal-textarea"></textarea>
+    <label class="modal-label">Раздел</label>
+    <select id="editPhotoCategory" class="modal-input"></select>
+    <label class="modal-label">Автор</label>
+    <select id="editPhotoOwner" class="modal-input"></select>
+    <div class="modal-hint">Выбери из уже зареганных пользователей — фото привяжется к нему по-настоящему (owner_code), как будто он сам его добавил.</div>
+    <div class="modal-actions">
+      <button id="editPhotoDelete" class="tool-btn danger">Удалить фото</button>
+      <button id="editPhotoCancel" class="tool-btn">Отмена</button>
+      <button id="editPhotoSave" class="pick-btn small">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- модалка подтверждения удаления -->
+<div id="confirmModal" class="modal">
+  <div class="modal-box modal-box-small">
+    <h3 id="confirmModalTitle">Точно?</h3>
+    <p class="modal-warning" id="confirmModalText">Это действие нельзя отменить.</p>
+    <div class="modal-actions">
+      <button id="confirmModalCancel" class="tool-btn">Отмена</button>
+      <button id="confirmModalOk" class="pick-btn small danger">Да, делаем</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="admin.js"></script>
+</body>
+</html>

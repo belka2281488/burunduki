@@ -131,6 +131,35 @@ main {
   color: #fff;
 }
 
+.category-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.category-tab {
+  background: transparent;
+  border: 1.5px solid #d8b997;
+  color: #8a6a4a;
+  padding: 6px 14px;
+  border-radius: 18px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.category-tab:hover {
+  border-color: #a0522d;
+}
+
+.category-tab.active {
+  background: #a0522d;
+  border-color: #a0522d;
+  color: #fff;
+}
+
 .source-picker {
   display: flex;
   flex-wrap: wrap;

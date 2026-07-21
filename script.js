@@ -1019,6 +1019,19 @@ async function submitRating(kind) {
 ratingEls.photo.submit.addEventListener("click", () => submitRating("photo"));
 ratingEls.video.submit.addEventListener("click", () => submitRating("video"));
 
+// Если человек отметил "подарить гиперзадку", а потом передумал и снял
+// галочку (ещё до нажатия "Оценить") — проигрываем звук отмены.
+function bindGigerUncheckSound(kind) {
+  gigerEls[kind].checkbox.addEventListener("change", (e) => {
+    if (!e.target.checked) {
+      gigerRemoveSound.currentTime = 0;
+      gigerRemoveSound.play().catch(() => {});
+    }
+  });
+}
+bindGigerUncheckSound("photo");
+bindGigerUncheckSound("video");
+
 /* ==================================================================
    ГИПЕРЗАДКИ (валюта: +1 за фото, +2 за видео, можно дарить авторам)
    ================================================================== */

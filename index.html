@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Галерея бурундуков Кирила</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="header">
+  <h1>🐿️ Галерея бурундуков Кирила</h1>
+  <p class="subtitle">Все бурундуки Кирила в одном месте</p>
+  <div class="who-am-i">
+    Ты: <span id="whoAmI">—</span>
+    <button id="changeNameBtn" class="link-btn">сменить имя</button>
+  </div>
+</header>
+
+<main>
+  <div class="tabs">
+    <button id="tabPhoto" class="tab-btn active">🖼️ Фото</button>
+    <button id="tabVideo" class="tab-btn">🎬 Видео</button>
+  </div>
+
+  <div class="search-wrap">
+    <input type="text" id="searchInput" class="search-input" placeholder="🔍 Поиск по имени...">
+  </div>
+
+  <div class="pick-wrap">
+    <button id="uploadPhotoBtn" class="pick-btn">➕ Добавить бурундука</button>
+    <button id="uploadVideoBtn" class="pick-btn hidden">➕ Добавить видео</button>
+    <div id="status" class="status">Загружаю галерею...</div>
+  </div>
+
+  <div id="galleryPhoto" class="gallery"></div>
+  <div id="galleryVideo" class="gallery hidden"></div>
+</main>
+
+<input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none">
+
+<!-- модалка "как тебя зовут" -->
+<div id="nameModal" class="modal">
+  <div class="modal-box modal-box-small">
+    <h3>Привет! 👋</h3>
+    <p class="modal-warning">Как тебя зовут? Это нужно, чтобы потом только ты мог редактировать своих загруженных бурундуков.</p>
+    <input type="text" id="nameInput" class="modal-input" placeholder="твоё имя">
+    <div class="modal-actions">
+      <button id="nameConfirm" class="pick-btn small">Готово</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- модалка добавления / редактирования ФОТО -->
+<div id="uploadModal" class="modal">
+  <div class="modal-box">
+    <h3 id="modalTitle">Новый бурундук 🐿️</h3>
+    <div class="modal-preview-wrap">
+      <img id="uploadPreview" class="modal-preview" alt="превью">
+    </div>
+    <label class="modal-label">Имя бурундука</label>
+    <input type="text" id="uploadName" class="modal-input" placeholder="например: кирил чеченец">
+
+    <label class="modal-label">Описание (необязательно)</label>
+    <textarea id="uploadDescription" class="modal-input modal-textarea" placeholder="например: найден на кухне в 3 часа ночи"></textarea>
+
+    <div class="modal-actions">
+      <button id="uploadCancel" class="tool-btn">Отмена</button>
+      <button id="uploadConfirm" class="pick-btn small">Добавить в галерею</button>
+    </div>
+  </div>
+</div>
+
+<!-- модалка добавления / редактирования ВИДЕО -->
+<div id="videoModal" class="modal">
+  <div class="modal-box">
+    <h3 id="videoModalTitle">Новое видео 🎬</h3>
+
+    <label class="modal-label">Источник видео</label>
+    <div class="source-picker" id="sourcePicker">
+      <button type="button" class="source-btn active" data-source="google_drive">📁 Google Drive</button>
+      <button type="button" class="source-btn" data-source="youtube">▶️ YouTube</button>
+      <button type="button" class="source-btn" data-source="tiktok">🎵 TikTok</button>
+      <button type="button" class="source-btn" data-source="tenor">🐿️ Tenor</button>
+      <button type="button" class="source-btn" data-source="other">🔗 Другое</button>
+    </div>
+
+    <label class="modal-label">Ссылка на видео</label>
+    <input type="text" id="videoUrl" class="modal-input" placeholder="вставь ссылку сюда">
+    <div id="videoUrlHint" class="modal-hint"></div>
+
+    <label class="modal-label">Имя бурундука</label>
+    <input type="text" id="videoName" class="modal-input" placeholder="например: кирил чеченец">
+
+    <label class="modal-label">Описание (необязательно)</label>
+    <textarea id="videoDescription" class="modal-input modal-textarea" placeholder="например: танцует под музыку"></textarea>
+
+    <div class="modal-actions">
+      <button id="videoCancel" class="tool-btn">Отмена</button>
+      <button id="videoConfirm" class="pick-btn small">Добавить в галерею</button>
+    </div>
+  </div>
+</div>
+
+<!-- модалка подтверждения удаления -->
+<div id="deleteModal" class="modal">
+  <div class="modal-box modal-box-small">
+    <h3>Удалить бурундука?</h3>
+    <p class="modal-warning">Это действие нельзя отменить.</p>
+    <div class="modal-actions">
+      <button id="deleteCancel" class="tool-btn">Отмена</button>
+      <button id="deleteConfirm" class="pick-btn small danger">Удалить</button>
+    </div>
+  </div>
+</div>
+
+<!-- Лайтбокс для просмотра ФОТО -->
+<div id="lightbox" class="lightbox">
+  <button class="lightbox-close" id="lightboxClose">&times;</button>
+  <div class="lightbox-name" id="lightboxName"></div>
+  <div class="lightbox-description" id="lightboxDescription"></div>
+
+  <div class="lightbox-toolbar">
+    <button id="modeLoupeBtn" class="tool-btn active" title="Лупа (наведение)">🔍 Лупа</button>
+    <button id="modeZoomBtn" class="tool-btn" title="Приблизить и таскать мышью">🖐️ Зум</button>
+    <div class="tool-sep"></div>
+    <button id="downloadBtn" class="tool-btn" title="Скачать фото">⬇️ Скачать</button>
+    <button id="copyBtn" class="tool-btn" title="Скопировать в буфер обмена">📋 Копировать</button>
+    <div class="tool-sep"></div>
+    <button id="editBtn" class="tool-btn" title="Редактировать">✏️ Изменить</button>
+    <button id="deleteBtn" class="tool-btn tool-btn-danger" title="Удалить">🗑️ Удалить</button>
+  </div>
+
+  <div class="lightbox-hint" id="lightboxHint">Наведи курсор на фото, чтобы приблизить · колесо мыши — размер лупы</div>
+
+  <div class="zoom-container" id="zoomContainer">
+    <img id="lightboxImg" src="" alt="">
+    <div class="magnifier" id="magnifier"></div>
+  </div>
+
+  <div class="rating-panel">
+    <div class="rating-summary">
+      <img id="photoRatingSummaryImg" class="rating-summary-img" src="assets/mtn.png" alt="">
+      <div class="rating-summary-info">
+        <div class="rating-summary-score" id="photoRatingScore">Пока нет оценок</div>
+        <div class="rating-summary-label" id="photoRatingLabel">Будь первым, кто оценит</div>
+      </div>
+    </div>
+
+    <div class="rating-own">
+      <div class="rating-picker" id="photoRatingPicker"></div>
+      <textarea id="photoRatingComment" class="modal-input modal-textarea rating-comment-input" placeholder="Комментарий (необязательно)"></textarea>
+      <button id="photoRatingSubmit" class="pick-btn small">Оценить</button>
+    </div>
+
+    <div class="rating-comments" id="photoRatingComments"></div>
+  </div>
+</div>
+
+<!-- Лайтбокс для просмотра ВИДЕО -->
+<div id="videoLightbox" class="lightbox">
+  <button class="lightbox-close" id="videoLightboxClose">&times;</button>
+  <div class="lightbox-name" id="videoLightboxName"></div>
+  <div class="lightbox-description" id="videoLightboxDescription"></div>
+
+  <div class="lightbox-toolbar">
+    <button id="videoOpenBtn" class="tool-btn" title="Открыть в новой вкладке">↗️ Открыть источник</button>
+    <div class="tool-sep"></div>
+    <button id="videoEditBtn" class="tool-btn" title="Редактировать">✏️ Изменить</button>
+    <button id="videoDeleteBtn" class="tool-btn tool-btn-danger" title="Удалить">🗑️ Удалить</button>
+  </div>
+
+  <div class="video-container" id="videoContainer"></div>
+
+  <div class="rating-panel">
+    <div class="rating-summary">
+      <img id="videoRatingSummaryImg" class="rating-summary-img" src="assets/mtn.png" alt="">
+      <div class="rating-summary-info">
+        <div class="rating-summary-score" id="videoRatingScore">Пока нет оценок</div>
+        <div class="rating-summary-label" id="videoRatingLabel">Будь первым, кто оценит</div>
+      </div>
+    </div>
+
+    <div class="rating-own">
+      <div class="rating-picker" id="videoRatingPicker"></div>
+      <textarea id="videoRatingComment" class="modal-input modal-textarea rating-comment-input" placeholder="Комментарий (необязательно)"></textarea>
+      <button id="videoRatingSubmit" class="pick-btn small">Оценить</button>
+    </div>
+
+    <div class="rating-comments" id="videoRatingComments"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="script.js"></script>
+</body>
+</html>

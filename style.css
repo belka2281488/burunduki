@@ -89,12 +89,16 @@ main {
   border: 1px solid #e0c9a8;
   font-size: 0.95rem;
   background: #fff;
+  box-sizing: border-box;
+  height: 44px;
 }
 
 .filter-toggle-btn {
   flex-shrink: 0;
-  width: 42px;
-  height: 42px;
+  box-sizing: border-box;
+  width: 36px;
+  height: 36px;
+  aspect-ratio: 1 / 1;
   border-radius: 50%;
   border: 1px solid #e0c9a8;
   background: #fff;
@@ -102,20 +106,37 @@ main {
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 0;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.15s ease, transform 0.12s ease;
+}
+
+.filter-toggle-btn svg {
+  width: 15px;
+  height: 15px;
+  pointer-events: none;
+  transition: transform 0.2s ease;
 }
 
 .filter-toggle-btn:hover {
   background: #a0522d;
   color: #fff;
   border-color: #a0522d;
+  transform: scale(1.06);
+}
+
+.filter-toggle-btn:active {
+  transform: scale(0.92);
 }
 
 .filter-toggle-btn.active {
   background: #a0522d;
   color: #fff;
   border-color: #a0522d;
+}
+
+.filter-toggle-btn.active svg {
+  transform: rotate(90deg);
 }
 
 .filter-panel {
@@ -128,6 +149,19 @@ main {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  transform-origin: top center;
+  animation: filterPanelIn 0.22s ease;
+}
+
+@keyframes filterPanelIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scaleY(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
+  }
 }
 
 .filter-panel-row {
@@ -145,6 +179,7 @@ main {
 
 .filter-select {
   flex: 1;
+  min-width: 0;
   padding: 8px 12px;
   border-radius: 12px;
   border: 1px solid #e0c9a8;
@@ -152,6 +187,14 @@ main {
   background: #fff;
   color: #5a3a1a;
   cursor: pointer;
+  transition: border-color 0.15s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.filter-select:hover {
+  border-color: #a0522d;
 }
 
 .owner-tag {

@@ -1023,9 +1023,13 @@ ratingEls.video.submit.addEventListener("click", () => submitRating("video"));
 // галочку (ещё до нажатия "Оценить") — проигрываем звук отмены.
 function bindGigerUncheckSound(kind) {
   gigerEls[kind].checkbox.addEventListener("change", (e) => {
+    console.log("[giger] чекбокс изменился:", kind, "checked =", e.target.checked);
     if (!e.target.checked) {
+      console.log("[giger] пробую играть звук, элемент audio:", gigerRemoveSound);
       gigerRemoveSound.currentTime = 0;
-      gigerRemoveSound.play().catch(() => {});
+      gigerRemoveSound.play()
+        .then(() => console.log("[giger] звук проигрался успешно"))
+        .catch((err) => console.log("[giger] ОШИБКА проигрывания:", err));
     }
   });
 }

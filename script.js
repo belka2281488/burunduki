@@ -81,6 +81,9 @@ const videoName = document.getElementById("videoName");
 const videoDescription = document.getElementById("videoDescription");
 const videoCancel = document.getElementById("videoCancel");
 const videoConfirm = document.getElementById("videoConfirm");
+const videoCategory = document.getElementById("videoCategory");
+const newVideoCategoryWrap = document.getElementById("newVideoCategoryWrap");
+const newVideoCategoryName = document.getElementById("newVideoCategoryName");
 
 const videoLightbox = document.getElementById("videoLightbox");
 const videoLightboxClose = document.getElementById("videoLightboxClose");
@@ -277,12 +280,17 @@ function applySearch() {
       : `Фото в галерее: ${filtered.length}`;
     renderPhotoGallery(filtered);
   } else {
+    const approvedCategoryIds = new Set(allCategories.map(c => c.id));
+    let base = allVideoRecords.filter(r => !r.category_id || approvedCategoryIds.has(r.category_id));
+    if (currentCategoryFilter !== "all") {
+      base = base.filter(r => r.category_id === currentCategoryFilter);
+    }
     const filtered = query
-      ? allVideoRecords.filter(r => r.name.toLowerCase().includes(query))
-      : allVideoRecords;
+      ? base.filter(r => r.name.toLowerCase().includes(query))
+      : base;
     statusEl.textContent = query
       ? `Найдено: ${filtered.length}`
-      : `Видео в галерее: ${allVideoRecords.length}`;
+      : `Видео в галерее: ${filtered.length}`;
     renderVideoGallery(filtered);
   }
 }
@@ -309,18 +317,20 @@ async function loadCategories() {
 }
 
 function fillCategorySelect() {
-  if (!uploadCategory) return;
-  uploadCategory.innerHTML = "";
-  allCategories.forEach((cat) => {
-    const opt = document.createElement("option");
-    opt.value = cat.id;
-    opt.textContent = cat.name;
-    uploadCategory.appendChild(opt);
+  [uploadCategory, videoCategory].forEach((selectEl) => {
+    if (!selectEl) return;
+    selectEl.innerHTML = "";
+    allCategories.forEach((cat) => {
+      const opt = document.createElement("option");
+      opt.value = cat.id;
+      opt.textContent = cat.name;
+      selectEl.appendChild(opt);
+    });
+    const newOpt = document.createElement("option");
+    newOpt.value = NEW_CATEGORY_VALUE;
+    newOpt.textContent = "➕ Создать свой раздел...";
+    selectEl.appendChild(newOpt);
   });
-  const newOpt = document.createElement("option");
-  newOpt.value = NEW_CATEGORY_VALUE;
-  newOpt.textContent = "➕ Создать свой раздел...";
-  uploadCategory.appendChild(newOpt);
 }
 
 if (uploadCategory) {
@@ -329,6 +339,16 @@ if (uploadCategory) {
       newCategoryWrap.classList.remove("hidden");
     } else {
       newCategoryWrap.classList.add("hidden");
+    }
+  });
+}
+
+if (videoCategory) {
+  videoCategory.addEventListener("change", () => {
+    if (videoCategory.value === NEW_CATEGORY_VALUE) {
+      newVideoCategoryWrap.classList.remove("hidden");
+    } else {
+      newVideoCategoryWrap.classList.add("hidden");
     }
   });
 }
@@ -896,6 +916,9 @@ uploadVideoBtn.addEventListener("click", () => {
   selectedSource = "google_drive";
   [...sourcePicker.children].forEach(b => b.classList.toggle("active", b.dataset.source === "google_drive"));
   videoUrlHint.textContent = SOURCE_HINTS.google_drive;
+  if (videoCategory) videoCategory.value = allCategories[0] ? allCategories[0].id : NEW_CATEGORY_VALUE;
+  if (newVideoCategoryWrap) newVideoCategoryWrap.classList.add("hidden");
+  if (newVideoCategoryName) newVideoCategoryName.value = "";
   videoModal.classList.add("active");
 });
 
@@ -940,6 +963,38 @@ videoConfirm.addEventListener("click", async () => {
   }
 
   videoConfirm.textContent = "Добавляю...";
+
+  let categoryId = videoCategory ? videoCategory.value : null;
+  let isNewPendingCategory = false;
+
+  if (categoryId === NEW_CATEGORY_VALUE) {
+    const newName = (newVideoCategoryName.value || "").trim();
+    if (!newName) {
+      showToast("Введи название нового раздела");
+      videoConfirm.disabled = false;
+      videoConfirm.textContent = "Добавить в галерею";
+      return;
+    }
+    const created = await createPendingCategory(
+      newName,
+      currentIdentity ? currentIdentity.name : null,
+      currentIdentity ? currentIdentity.code : null
+    );
+    if (!created) {
+      showToast("Не удалось создать раздел, попробуй ещё раз");
+      videoConfirm.disabled = false;
+      videoConfirm.textContent = "Добавить в галерею";
+      return;
+    }
+    categoryId = created.id;
+    isNewPendingCategory = true;
+  } else if (!categoryId) {
+    showToast("Выбери раздел");
+    videoConfirm.disabled = false;
+    videoConfirm.textContent = "Добавить в галерею";
+    return;
+  }
+
   const { error } = await db.from(VIDEO_TABLE).insert({
     video_url: url,
     source: selectedSource,
@@ -947,6 +1002,7 @@ videoConfirm.addEventListener("click", async () => {
     description: description || null,
     owner_name: currentIdentity ? currentIdentity.name : null,
     owner_code: currentIdentity ? currentIdentity.code : null,
+    category_id: categoryId,
   });
 
   videoConfirm.disabled = false;
@@ -958,7 +1014,11 @@ videoConfirm.addEventListener("click", async () => {
   }
 
   videoModal.classList.remove("active");
-  showToast("Видео добавлено в галерею 🎬");
+  if (isNewPendingCategory) {
+    showToast("Видео добавлено, раздел на рассмотрении у админа 🕓");
+  } else {
+    showToast("Видео добавлено в галерею 🎬");
+  }
   creditGigersForPublish("video");
   loadVideos();
 });

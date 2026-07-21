@@ -40,6 +40,15 @@
     <div id="photosList" class="admin-list">Загружаю...</div>
   </section>
 
+  <section class="admin-section" id="section-videos">
+    <h2>🎬 Все видео</h2>
+    <div class="admin-filter-row">
+      <input type="text" id="videoSearch" class="search-input" placeholder="🔍 Поиск по имени...">
+      <select id="videoCategoryFilter" class="modal-input"></select>
+    </div>
+    <div id="videosList" class="admin-list">Загружаю...</div>
+  </section>
+
   <section class="admin-section" id="section-users">
     <h2>👥 Пользователи (авторы)</h2>
     <p class="admin-hint">Список всех owner_code/owner_name, встреченных в фото и видео. Можно переименовать автора везде разом — полезно для старых фото без автора.</p>
@@ -68,6 +77,29 @@
       <button id="editPhotoDelete" class="tool-btn danger">Удалить фото</button>
       <button id="editPhotoCancel" class="tool-btn">Отмена</button>
       <button id="editPhotoSave" class="pick-btn small">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- модалка редактирования видео -->
+<div id="editVideoModal" class="modal">
+  <div class="modal-box">
+    <h3>Редактировать видео</h3>
+    <label class="modal-label">Ссылка на видео</label>
+    <input type="text" id="editVideoUrl" class="modal-input">
+    <label class="modal-label">Название</label>
+    <input type="text" id="editVideoName" class="modal-input">
+    <label class="modal-label">Описание</label>
+    <textarea id="editVideoDescription" class="modal-input modal-textarea"></textarea>
+    <label class="modal-label">Раздел</label>
+    <select id="editVideoCategory" class="modal-input"></select>
+    <label class="modal-label">Автор</label>
+    <select id="editVideoOwner" class="modal-input"></select>
+    <div class="modal-hint">Выбери из уже зареганных пользователей — видео привяжется к нему по-настоящему (owner_code).</div>
+    <div class="modal-actions">
+      <button id="editVideoDelete" class="tool-btn danger">Удалить видео</button>
+      <button id="editVideoCancel" class="tool-btn">Отмена</button>
+      <button id="editVideoSave" class="pick-btn small">Сохранить</button>
     </div>
   </div>
 </div>

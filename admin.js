@@ -146,7 +146,8 @@ function renderAllCategories() {
 
   el.innerHTML = "";
   allCategories.forEach((cat) => {
-    const count = allPhotos.filter(p => p.category_id === cat.id).length;
+    const photoCount = allPhotos.filter(p => p.category_id === cat.id).length;
+    const videoCount = allVideos.filter(v => v.category_id === cat.id).length;
     const row = document.createElement("div");
     row.className = "admin-row";
     row.innerHTML = `
@@ -155,7 +156,7 @@ function renderAllCategories() {
           ${escapeHtml(cat.name)}
           ${cat.status !== "approved" ? `<span class="badge-pending">${cat.status === "pending" ? "на рассмотрении" : "отклонён"}</span>` : ""}
         </div>
-        <div class="admin-row-sub">фото в разделе: ${count}</div>
+        <div class="admin-row-sub">фото: ${photoCount} · видео: ${videoCount}</div>
       </div>
       <div class="admin-row-actions">
         <button class="tool-btn" data-rename>Переименовать</button>
@@ -186,16 +187,19 @@ async function renameCategory(cat) {
 }
 
 async function deleteCategory(cat) {
-  const count = allPhotos.filter(p => p.category_id === cat.id).length;
+  const photoCount = allPhotos.filter(p => p.category_id === cat.id).length;
+  const videoCount = allVideos.filter(v => v.category_id === cat.id).length;
+  const count = photoCount + videoCount;
   const ok = await askConfirm(
     "Удалить раздел?",
     count
-      ? `В разделе «${cat.name}» есть ${count} фото — они останутся, но без раздела.`
+      ? `В разделе «${cat.name}» есть ${photoCount} фото и ${videoCount} видео — они останутся, но без раздела.`
       : `Раздел «${cat.name}» будет удалён.`
   );
   if (!ok) return;
 
   await db.from(PHOTO_TABLE).update({ category_id: null }).eq("category_id", cat.id);
+  await db.from(VIDEO_TABLE).update({ category_id: null }).eq("category_id", cat.id);
 
   const { error } = await db.from(CATEGORY_TABLE).delete().eq("id", cat.id);
   if (error) {
@@ -205,6 +209,8 @@ async function deleteCategory(cat) {
   showToast("Раздел удалён");
   await loadCategories();
   await loadPhotos();
+  await loadVideos();
+  renderUsers();
 }
 
 document.getElementById("addCategoryDirectBtn").addEventListener("click", async () => {
@@ -225,16 +231,18 @@ document.getElementById("addCategoryDirectBtn").addEventListener("click", async 
 });
 
 function fillPhotoCategoryFilter() {
-  const sel = document.getElementById("photoCategoryFilter");
-  const prev = sel.value;
-  sel.innerHTML = `<option value="all">Все разделы</option><option value="none">Без раздела</option>`;
-  allCategories.forEach((cat) => {
-    const opt = document.createElement("option");
-    opt.value = cat.id;
-    opt.textContent = cat.name + (cat.status !== "approved" ? ` (${cat.status})` : "");
-    sel.appendChild(opt);
+  [document.getElementById("photoCategoryFilter"), document.getElementById("videoCategoryFilter")].forEach((sel) => {
+    if (!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = `<option value="all">Все разделы</option><option value="none">Без раздела</option>`;
+    allCategories.forEach((cat) => {
+      const opt = document.createElement("option");
+      opt.value = cat.id;
+      opt.textContent = cat.name + (cat.status !== "approved" ? ` (${cat.status})` : "");
+      sel.appendChild(opt);
+    });
+    if (prev) sel.value = prev;
   });
-  if (prev) sel.value = prev;
 }
 
 /* ==================================================================
@@ -398,14 +406,168 @@ async function deletePhoto(photo) {
 }
 
 /* ==================================================================
-   ПОЛЬЗОВАТЕЛИ (авторы)
+   ВИДЕО
    ================================================================== */
 async function loadVideos() {
-  const { data, error } = await db.from(VIDEO_TABLE).select("*");
-  if (error) return;
+  const { data, error } = await db
+    .from(VIDEO_TABLE)
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    showToast("Ошибка загрузки видео: " + error.message);
+    return;
+  }
   allVideos = data || [];
+  renderAllCategories();
+  renderVideos();
 }
 
+function renderVideos() {
+  const el = document.getElementById("videosList");
+  const query = document.getElementById("videoSearch").value.trim().toLowerCase();
+  const catFilter = document.getElementById("videoCategoryFilter").value;
+
+  let filtered = allVideos;
+  if (query) filtered = filtered.filter(v => v.name.toLowerCase().includes(query));
+  if (catFilter === "none") filtered = filtered.filter(v => !v.category_id);
+  else if (catFilter !== "all") filtered = filtered.filter(v => v.category_id === catFilter);
+
+  if (!filtered.length) {
+    el.innerHTML = `<div class="empty-note">Ничего не найдено</div>`;
+    return;
+  }
+
+  el.innerHTML = "";
+  filtered.forEach((video) => {
+    const cat = allCategories.find(c => c.id === video.category_id);
+    const row = document.createElement("div");
+    row.className = "admin-row";
+    row.innerHTML = `
+      <div class="admin-row-main">
+        <div class="admin-row-title">${escapeHtml(video.name)}</div>
+        <div class="admin-row-sub">
+          ${video.owner_name ? "автор: " + escapeHtml(video.owner_name) : "автор не указан"}
+          · источник: ${escapeHtml(video.source)}
+          ${cat ? " · раздел: " + escapeHtml(cat.name) : " · без раздела"}
+        </div>
+      </div>
+      <div class="admin-row-actions">
+        <button class="tool-btn" data-edit>Изменить</button>
+        <button class="tool-btn danger" data-delete>Удалить</button>
+      </div>
+    `;
+    row.querySelector("[data-edit]").addEventListener("click", () => openEditVideo(video));
+    row.querySelector("[data-delete]").addEventListener("click", () => deleteVideo(video));
+    el.appendChild(row);
+  });
+}
+
+document.getElementById("videoSearch").addEventListener("input", renderVideos);
+document.getElementById("videoCategoryFilter").addEventListener("change", renderVideos);
+
+/* ---------- Редактирование видео ---------- */
+const editVideoModal = document.getElementById("editVideoModal");
+const editVideoUrl = document.getElementById("editVideoUrl");
+const editVideoName = document.getElementById("editVideoName");
+const editVideoDescription = document.getElementById("editVideoDescription");
+const editVideoCategory = document.getElementById("editVideoCategory");
+const editVideoOwner = document.getElementById("editVideoOwner");
+const editVideoCancel = document.getElementById("editVideoCancel");
+const editVideoSave = document.getElementById("editVideoSave");
+const editVideoDelete = document.getElementById("editVideoDelete");
+
+let editingVideo = null;
+
+function openEditVideo(video) {
+  editingVideo = video;
+  editVideoUrl.value = video.video_url || "";
+  editVideoName.value = video.name || "";
+  editVideoDescription.value = video.description || "";
+
+  editVideoOwner.innerHTML = `<option value="">Без автора (общее видео)</option>`;
+  collectUsers().forEach((u) => {
+    const opt = document.createElement("option");
+    opt.value = u.code;
+    opt.dataset.name = u.name;
+    opt.textContent = `${u.name} (фото: ${u.photoCount}, видео: ${u.videoCount})`;
+    editVideoOwner.appendChild(opt);
+  });
+  editVideoOwner.value = video.owner_code || "";
+
+  editVideoCategory.innerHTML = `<option value="">Без раздела</option>`;
+  allCategories.forEach((cat) => {
+    const opt = document.createElement("option");
+    opt.value = cat.id;
+    opt.textContent = cat.name + (cat.status !== "approved" ? ` (${cat.status})` : "");
+    editVideoCategory.appendChild(opt);
+  });
+  editVideoCategory.value = video.category_id || "";
+
+  editVideoModal.classList.add("active");
+}
+
+editVideoCancel.addEventListener("click", () => {
+  editVideoModal.classList.remove("active");
+  editingVideo = null;
+});
+
+editVideoSave.addEventListener("click", async () => {
+  if (!editingVideo) return;
+
+  const selectedOpt = editVideoOwner.options[editVideoOwner.selectedIndex];
+  const ownerCode = editVideoOwner.value || null;
+  const ownerName = ownerCode ? selectedOpt.dataset.name : null;
+
+  const { error } = await db
+    .from(VIDEO_TABLE)
+    .update({
+      video_url: editVideoUrl.value.trim(),
+      name: editVideoName.value.trim() || "безымянный бурундук",
+      description: editVideoDescription.value.trim() || null,
+      category_id: editVideoCategory.value || null,
+      owner_code: ownerCode,
+      owner_name: ownerName,
+    })
+    .eq("id", editingVideo.id);
+
+  if (error) {
+    showToast("Не удалось сохранить: " + error.message);
+    return;
+  }
+
+  showToast("Видео обновлено ✏️");
+  editVideoModal.classList.remove("active");
+  editingVideo = null;
+  await loadVideos();
+});
+
+editVideoDelete.addEventListener("click", async () => {
+  if (!editingVideo) return;
+  const ok = await askConfirm("Удалить видео?", `«${editingVideo.name}» будет удалено безвозвратно.`);
+  if (!ok) return;
+  await deleteVideo(editingVideo);
+  editVideoModal.classList.remove("active");
+  editingVideo = null;
+});
+
+async function deleteVideo(video) {
+  const ok = editingVideo === video ? true : await askConfirm("Удалить видео?", `«${video.name}» будет удалено безвозвратно.`);
+  if (!ok) return;
+
+  const { error } = await db.from(VIDEO_TABLE).delete().eq("id", video.id);
+
+  if (error) {
+    showToast("Не удалось удалить: " + error.message);
+    return;
+  }
+  showToast("Видео удалено 🗑️");
+  await loadVideos();
+}
+
+/* ==================================================================
+   ПОЛЬЗОВАТЕЛИ (авторы)
+   ================================================================== */
 function collectUsers() {
   const map = new Map();
 

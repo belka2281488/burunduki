@@ -73,6 +73,9 @@
     <label class="modal-label">Автор</label>
     <select id="editPhotoOwner" class="modal-input"></select>
     <div class="modal-hint">Выбери из уже зареганных пользователей — фото привяжется к нему по-настоящему (owner_code), как будто он сам его добавил.</div>
+    <label class="modal-label">Дата и время публикации</label>
+    <input type="datetime-local" id="editPhotoDate" class="modal-input">
+    <div class="modal-hint">Влияет на сортировку "по дате" и на то, где фото окажется в ленте. Можно поставить любую дату, если знаешь, когда фото реально было сделано.</div>
     <div class="modal-actions">
       <button id="editPhotoDelete" class="tool-btn danger">Удалить фото</button>
       <button id="editPhotoCancel" class="tool-btn">Отмена</button>
@@ -96,6 +99,9 @@
     <label class="modal-label">Автор</label>
     <select id="editVideoOwner" class="modal-input"></select>
     <div class="modal-hint">Выбери из уже зареганных пользователей — видео привяжется к нему по-настоящему (owner_code).</div>
+    <label class="modal-label">Дата и время публикации</label>
+    <input type="datetime-local" id="editVideoDate" class="modal-input">
+    <div class="modal-hint">Влияет на сортировку "по дате" и на то, где видео окажется в ленте. Можно поставить любую дату, если знаешь, когда видео реально было снято/загружено.</div>
     <div class="modal-actions">
       <button id="editVideoDelete" class="tool-btn danger">Удалить видео</button>
       <button id="editVideoCancel" class="tool-btn">Отмена</button>

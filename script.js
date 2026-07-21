@@ -75,6 +75,7 @@ const lightbox = document.getElementById("lightbox");
 const lightboxImg = document.getElementById("lightboxImg");
 const lightboxName = document.getElementById("lightboxName");
 const lightboxDescription = document.getElementById("lightboxDescription");
+const lightboxDate = document.getElementById("lightboxDate");
 const lightboxHint = document.getElementById("lightboxHint");
 const lightboxClose = document.getElementById("lightboxClose");
 const activityBellBtn = document.getElementById("activityBellBtn");
@@ -114,6 +115,7 @@ const videoLightbox = document.getElementById("videoLightbox");
 const videoLightboxClose = document.getElementById("videoLightboxClose");
 const videoLightboxName = document.getElementById("videoLightboxName");
 const videoLightboxDescription = document.getElementById("videoLightboxDescription");
+const videoLightboxDate = document.getElementById("videoLightboxDate");
 const videoContainer = document.getElementById("videoContainer");
 const videoOpenBtn = document.getElementById("videoOpenBtn");
 const videoShareBtn = document.getElementById("videoShareBtn");
@@ -578,6 +580,15 @@ function nameFromFilename(filename) {
   return filename.replace(/\.[^/.]+$/, "").replace(/[_-]+/g, " ").trim();
 }
 
+function formatPublishDate(isoString) {
+  if (!isoString) return "";
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return "";
+  const datePart = d.toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
+  const timePart = d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  return `Опубликовано: ${datePart}, ${timePart}`;
+}
+
 let allPhotoRecords = [];
 let allVideoRecords = [];
 let currentPhotoList = [];
@@ -765,6 +776,7 @@ function openLightbox(record, src, index) {
   lightboxName.textContent = record.name;
   lightboxDescription.textContent = record.description || "";
   lightboxDescription.style.display = record.description ? "block" : "none";
+  lightboxDate.textContent = formatPublishDate(record.created_at);
   magnifier.style.backgroundImage = `url('${src}')`;
   setMode("loupe");
 
@@ -1081,6 +1093,7 @@ function openVideoLightbox(record, index) {
   videoLightboxName.textContent = record.name;
   videoLightboxDescription.textContent = record.description || "";
   videoLightboxDescription.style.display = record.description ? "block" : "none";
+  videoLightboxDate.textContent = formatPublishDate(record.created_at);
 
   const { html, landscape } = buildEmbedHtml(record);
   videoContainer.innerHTML = html;

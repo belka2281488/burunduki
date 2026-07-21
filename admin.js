@@ -313,9 +313,27 @@ const editPhotoName = document.getElementById("editPhotoName");
 const editPhotoDescription = document.getElementById("editPhotoDescription");
 const editPhotoCategory = document.getElementById("editPhotoCategory");
 const editPhotoOwner = document.getElementById("editPhotoOwner");
+const editPhotoDate = document.getElementById("editPhotoDate");
 const editPhotoCancel = document.getElementById("editPhotoCancel");
 const editPhotoSave = document.getElementById("editPhotoSave");
 const editPhotoDelete = document.getElementById("editPhotoDelete");
+
+// Преобразует ISO-дату из базы (UTC) в значение для <input type="datetime-local">,
+// которое всегда показывается и вводится в локальном времени браузера.
+function isoToLocalInputValue(isoString) {
+  const d = isoString ? new Date(isoString) : new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// Обратное преобразование: значение из datetime-local (локальное время)
+// в корректный ISO-таймстамп для записи в Supabase.
+function localInputValueToIso(value) {
+  if (!value) return null;
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
 
 let editingPhoto = null;
 
@@ -344,6 +362,8 @@ function openEditPhoto(photo) {
   });
   editPhotoCategory.value = photo.category_id || "";
 
+  editPhotoDate.value = isoToLocalInputValue(photo.created_at);
+
   editPhotoModal.classList.add("active");
 }
 
@@ -367,6 +387,7 @@ editPhotoSave.addEventListener("click", async () => {
       category_id: editPhotoCategory.value || null,
       owner_code: ownerCode,
       owner_name: ownerName,
+      created_at: localInputValueToIso(editPhotoDate.value) || editingPhoto.created_at,
     })
     .eq("id", editingPhoto.id);
 
@@ -473,6 +494,7 @@ const editVideoName = document.getElementById("editVideoName");
 const editVideoDescription = document.getElementById("editVideoDescription");
 const editVideoCategory = document.getElementById("editVideoCategory");
 const editVideoOwner = document.getElementById("editVideoOwner");
+const editVideoDate = document.getElementById("editVideoDate");
 const editVideoCancel = document.getElementById("editVideoCancel");
 const editVideoSave = document.getElementById("editVideoSave");
 const editVideoDelete = document.getElementById("editVideoDelete");
@@ -504,6 +526,8 @@ function openEditVideo(video) {
   });
   editVideoCategory.value = video.category_id || "";
 
+  editVideoDate.value = isoToLocalInputValue(video.created_at);
+
   editVideoModal.classList.add("active");
 }
 
@@ -528,6 +552,7 @@ editVideoSave.addEventListener("click", async () => {
       category_id: editVideoCategory.value || null,
       owner_code: ownerCode,
       owner_name: ownerName,
+      created_at: localInputValueToIso(editVideoDate.value) || editingVideo.created_at,
     })
     .eq("id", editingVideo.id);
 

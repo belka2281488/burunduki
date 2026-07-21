@@ -639,6 +639,13 @@ main {
   white-space: pre-wrap;
 }
 
+.lightbox-date {
+  color: #b89574;
+  font-size: 0.78rem;
+  text-align: center;
+  margin-bottom: 10px;
+}
+
 .status {
   text-align: center;
   color: #a0522d;

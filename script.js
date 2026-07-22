@@ -12,6 +12,8 @@ const GIGER_TABLE = "burunduk_gigers";
 const GIGER_GIFTS_TABLE = "burunduk_giger_gifts";
 const VIEWS_TABLE = "burunduk_views";
 const ACTIVITY_TABLE = "burunduk_activity";
+const PROFILES_TABLE = "burunduk_profiles";
+const FOLLOWS_TABLE = "burunduk_follows";
 
 /* ---------- Ранги оценки (вместо звёзд) ---------- */
 const RANK_LEVELS = [
@@ -74,8 +76,10 @@ const NEW_CATEGORY_VALUE = "__new__";
 const lightbox = document.getElementById("lightbox");
 const lightboxImg = document.getElementById("lightboxImg");
 const lightboxName = document.getElementById("lightboxName");
+const lightboxAuthor = document.getElementById("lightboxAuthor");
 const lightboxDescription = document.getElementById("lightboxDescription");
 const lightboxDate = document.getElementById("lightboxDate");
+const photoViewCounter = document.getElementById("photoViewCounter");
 const lightboxHint = document.getElementById("lightboxHint");
 const lightboxClose = document.getElementById("lightboxClose");
 const activityBellBtn = document.getElementById("activityBellBtn");
@@ -83,6 +87,34 @@ const activityBadge = document.getElementById("activityBadge");
 const activityPanel = document.getElementById("activityPanel");
 const activityCloseBtn = document.getElementById("activityCloseBtn");
 const activityList = document.getElementById("activityList");
+
+/* ---------- Профиль автора ---------- */
+const mainEl = document.querySelector("main");
+const profileView = document.getElementById("profileView");
+const profileBackBtn = document.getElementById("profileBackBtn");
+const profileBanner = document.getElementById("profileBanner");
+const profileEditBannerBtn = document.getElementById("profileEditBannerBtn");
+const profileAvatar = document.getElementById("profileAvatar");
+const profileEditAvatarBtn = document.getElementById("profileEditAvatarBtn");
+const profileName = document.getElementById("profileName");
+const profileEditBtn = document.getElementById("profileEditBtn");
+const profileFollowBtn = document.getElementById("profileFollowBtn");
+const profileBio = document.getElementById("profileBio");
+const profileFollowersCount = document.getElementById("profileFollowersCount");
+const profileViewsCount = document.getElementById("profileViewsCount");
+const profilePostsCount = document.getElementById("profilePostsCount");
+const profileTabPhoto = document.getElementById("profileTabPhoto");
+const profileTabVideo = document.getElementById("profileTabVideo");
+const profileGalleryPhoto = document.getElementById("profileGalleryPhoto");
+const profileGalleryVideo = document.getElementById("profileGalleryVideo");
+const profileEmpty = document.getElementById("profileEmpty");
+const editProfileModal = document.getElementById("editProfileModal");
+const editProfileName = document.getElementById("editProfileName");
+const editProfileBio = document.getElementById("editProfileBio");
+const editProfileCancel = document.getElementById("editProfileCancel");
+const editProfileSave = document.getElementById("editProfileSave");
+const avatarFileInput = document.getElementById("avatarFileInput");
+const bannerFileInput = document.getElementById("bannerFileInput");
 const lightboxPrevBtn = document.getElementById("lightboxPrevBtn");
 const lightboxNextBtn = document.getElementById("lightboxNextBtn");
 const videoLightboxPrevBtn = document.getElementById("videoLightboxPrevBtn");
@@ -114,8 +146,10 @@ const newVideoCategoryName = document.getElementById("newVideoCategoryName");
 const videoLightbox = document.getElementById("videoLightbox");
 const videoLightboxClose = document.getElementById("videoLightboxClose");
 const videoLightboxName = document.getElementById("videoLightboxName");
+const videoLightboxAuthor = document.getElementById("videoLightboxAuthor");
 const videoLightboxDescription = document.getElementById("videoLightboxDescription");
 const videoLightboxDate = document.getElementById("videoLightboxDate");
+const videoViewCounter = document.getElementById("videoViewCounter");
 const videoContainer = document.getElementById("videoContainer");
 const videoOpenBtn = document.getElementById("videoOpenBtn");
 const videoShareBtn = document.getElementById("videoShareBtn");
@@ -604,9 +638,16 @@ function renderPhotoGallery(records) {
     card.innerHTML = `
       <img src="${src}" alt="${record.name}" loading="lazy">
       <div class="name">${record.name}</div>
-      ${record.owner_name ? `<div class="owner-tag">от ${record.owner_name}</div>` : ""}
+      ${record.owner_name ? `<div class="owner-tag owner-tag-link" data-owner="${record.owner_code}">от ${record.owner_name}</div>` : ""}
     `;
     card.addEventListener("click", () => openLightbox(record, src, idx));
+    const ownerTag = card.querySelector(".owner-tag-link");
+    if (ownerTag) {
+      ownerTag.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openProfile(record.owner_code);
+      });
+    }
     galleryPhoto.appendChild(card);
   });
 }
@@ -718,14 +759,18 @@ uploadConfirm.addEventListener("click", async () => {
     return;
   }
 
-  const { error: insertError } = await db.from(PHOTO_TABLE).insert({
-    storage_path: storagePath,
-    name: displayName,
-    description: description || null,
-    owner_name: currentIdentity ? currentIdentity.name : null,
-    owner_code: currentIdentity ? currentIdentity.code : null,
-    category_id: categoryId,
-  });
+  const { data: insertedPhoto, error: insertError } = await db
+    .from(PHOTO_TABLE)
+    .insert({
+      storage_path: storagePath,
+      name: displayName,
+      description: description || null,
+      owner_name: currentIdentity ? currentIdentity.name : null,
+      owner_code: currentIdentity ? currentIdentity.code : null,
+      category_id: categoryId,
+    })
+    .select()
+    .single();
 
   uploadConfirm.disabled = false;
   uploadConfirm.textContent = "Добавить в галерею";
@@ -744,6 +789,7 @@ uploadConfirm.addEventListener("click", async () => {
     showToast("Бурундук добавлен в галерею 🐿️");
   }
   creditGigersForPublish("photo");
+  notifyFollowersOfNewPost("photo", insertedPhoto);
   loadPhotos();
 });
 
@@ -777,6 +823,14 @@ function openLightbox(record, src, index) {
   lightboxDescription.textContent = record.description || "";
   lightboxDescription.style.display = record.description ? "block" : "none";
   lightboxDate.textContent = formatPublishDate(record.created_at);
+  if (record.owner_name) {
+    lightboxAuthor.textContent = `от ${record.owner_name}`;
+    lightboxAuthor.dataset.owner = record.owner_code || "";
+    lightboxAuthor.style.display = record.owner_code ? "block" : "none";
+  } else {
+    lightboxAuthor.textContent = "";
+    lightboxAuthor.style.display = "none";
+  }
   magnifier.style.backgroundImage = `url('${src}')`;
   setMode("loupe");
 
@@ -789,7 +843,8 @@ function openLightbox(record, src, index) {
   lightbox.classList.add("active");
   loadRatings("photo", record.id);
   loadGiftState("photo", record);
-  registerView("photo", record);
+  registerView("photo", record).then(() => showViewCount("photo", record.id, photoViewCounter));
+  showViewCount("photo", record.id, photoViewCounter);
 }
 
 function updateLightboxNavButtons() {
@@ -841,6 +896,12 @@ function closeLightbox() {
 }
 
 lightboxClose.addEventListener("click", closeLightbox);
+lightboxAuthor.addEventListener("click", () => {
+  if (lightboxAuthor.dataset.owner) {
+    closeLightbox();
+    openProfile(lightboxAuthor.dataset.owner);
+  }
+});
 lightbox.addEventListener("click", (e) => {
   if (e.target === lightbox) closeLightbox();
 });
@@ -1029,9 +1090,16 @@ function renderVideoGallery(records) {
       </div>
       <div class="video-badge">${SOURCE_LABELS[record.source] || "Видео"}</div>
       <div class="name">${record.name}</div>
-      ${record.owner_name ? `<div class="owner-tag">от ${record.owner_name}</div>` : ""}
+      ${record.owner_name ? `<div class="owner-tag owner-tag-link" data-owner="${record.owner_code}">от ${record.owner_name}</div>` : ""}
     `;
     card.addEventListener("click", () => openVideoLightbox(record, idx));
+    const ownerTag = card.querySelector(".owner-tag-link");
+    if (ownerTag) {
+      ownerTag.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openProfile(record.owner_code);
+      });
+    }
     galleryVideo.appendChild(card);
   });
 }
@@ -1094,6 +1162,14 @@ function openVideoLightbox(record, index) {
   videoLightboxDescription.textContent = record.description || "";
   videoLightboxDescription.style.display = record.description ? "block" : "none";
   videoLightboxDate.textContent = formatPublishDate(record.created_at);
+  if (record.owner_name) {
+    videoLightboxAuthor.textContent = `от ${record.owner_name}`;
+    videoLightboxAuthor.dataset.owner = record.owner_code || "";
+    videoLightboxAuthor.style.display = record.owner_code ? "block" : "none";
+  } else {
+    videoLightboxAuthor.textContent = "";
+    videoLightboxAuthor.style.display = "none";
+  }
 
   const { html, landscape } = buildEmbedHtml(record);
   videoContainer.innerHTML = html;
@@ -1108,7 +1184,8 @@ function openVideoLightbox(record, index) {
   videoLightbox.classList.add("active");
   loadRatings("video", record.id);
   loadGiftState("video", record);
-  registerView("video", record);
+  registerView("video", record).then(() => showViewCount("video", record.id, videoViewCounter));
+  showViewCount("video", record.id, videoViewCounter);
 }
 
 function updateVideoNavButtons() {
@@ -1146,6 +1223,12 @@ function closeVideoLightbox() {
 }
 
 videoLightboxClose.addEventListener("click", closeVideoLightbox);
+videoLightboxAuthor.addEventListener("click", () => {
+  if (videoLightboxAuthor.dataset.owner) {
+    closeVideoLightbox();
+    openProfile(videoLightboxAuthor.dataset.owner);
+  }
+});
 videoLightbox.addEventListener("click", (e) => {
   if (e.target === videoLightbox) closeVideoLightbox();
 });
@@ -1253,15 +1336,19 @@ videoConfirm.addEventListener("click", async () => {
     return;
   }
 
-  const { error } = await db.from(VIDEO_TABLE).insert({
-    video_url: url,
-    source: selectedSource,
-    name: displayName,
-    description: description || null,
-    owner_name: currentIdentity ? currentIdentity.name : null,
-    owner_code: currentIdentity ? currentIdentity.code : null,
-    category_id: categoryId,
-  });
+  const { data: insertedVideo, error } = await db
+    .from(VIDEO_TABLE)
+    .insert({
+      video_url: url,
+      source: selectedSource,
+      name: displayName,
+      description: description || null,
+      owner_name: currentIdentity ? currentIdentity.name : null,
+      owner_code: currentIdentity ? currentIdentity.code : null,
+      category_id: categoryId,
+    })
+    .select()
+    .single();
 
   videoConfirm.disabled = false;
   videoConfirm.textContent = "Добавить в галерею";
@@ -1278,6 +1365,7 @@ videoConfirm.addEventListener("click", async () => {
     showToast("Видео добавлено в галерею 🎬");
   }
   creditGigersForPublish("video");
+  notifyFollowersOfNewPost("video", insertedVideo);
   loadVideos();
 });
 
@@ -1534,6 +1622,23 @@ async function creditGigersForPublish(kind) {
   refreshMyGigerBalance();
 }
 
+// Уведомляет всех подписчиков автора о новой публикации — событие
+// падает каждому в его центр активности (kind='new_post').
+async function notifyFollowersOfNewPost(kind, record) {
+  if (!currentIdentity || !record) return;
+  try {
+    await db.rpc("notify_followers_new_post", {
+      p_owner_code: currentIdentity.code,
+      p_owner_name: currentIdentity.name,
+      p_target_type: kind,
+      p_target_id: record.id,
+      p_target_name: record.name,
+    });
+  } catch (err) {
+    console.error("[follow] не удалось уведомить подписчиков:", err);
+  }
+}
+
 async function loadGiftState(kind, record) {
   const els = gigerEls[kind];
   els.checkbox.checked = false;
@@ -1776,6 +1881,39 @@ async function registerView(kind, record) {
   }
 }
 
+// Считает уникальных зрителей карточки и тихонько показывает число
+// под комментариями (например "👁 12 просмотров"). Если счёт не
+// удалось получить, просто ничего не показываем — не критично.
+function formatViewCount(count) {
+  if (!count) return "👁 пока никто не смотрел";
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  let word = "просмотров";
+  if (mod100 < 11 || mod100 > 14) {
+    if (mod10 === 1) word = "просмотр";
+    else if (mod10 >= 2 && mod10 <= 4) word = "просмотра";
+  }
+  return `👁 ${count} ${word}`;
+}
+
+async function showViewCount(kind, targetId, el) {
+  if (!el) return;
+  el.textContent = "";
+  if (!db) return;
+  try {
+    const { count, error } = await db
+      .from(VIEWS_TABLE)
+      .select("id", { count: "exact", head: true })
+      .eq("target_type", kind)
+      .eq("target_id", targetId);
+    if (error) return;
+    el.textContent = formatViewCount(count || 0);
+  } catch (err) {
+    console.error("[views] не удалось получить счётчик просмотров:", err);
+  }
+}
+
+
 // Пишем событие в ленту активности напрямую (для комментариев и подарков,
 // у которых уже есть отдельная запись в своей таблице — здесь только
 // уведомление в ленте).
@@ -1826,15 +1964,17 @@ function activityIcon(kind) {
   if (kind === "view") return "👀";
   if (kind === "comment") return "💬";
   if (kind === "gift") return "🎁";
+  if (kind === "new_post") return "🐿️";
   return "🔔";
 }
 
 function activityText(item) {
-  const who = `<b>${item.actor_name || "Кто-то"}</b>`;
+  const who = `<b class="activity-item-actor" data-actor="${item.actor_code}">${item.actor_name || "Кто-то"}</b>`;
   const what = item.target_name ? `«${item.target_name}»` : "публикацию";
   if (item.kind === "view") return `${who} посмотрел(а) твою публикацию ${what}`;
   if (item.kind === "comment") return `${who} написал(а) комментарий под ${what}`;
   if (item.kind === "gift") return `${who} отправил(а) тебе гиперзадку за ${what}`;
+  if (item.kind === "new_post") return `${who} выложил(а) новую публикацию ${what}`;
   return `${who}: событие по ${what}`;
 }
 
@@ -1875,6 +2015,16 @@ async function loadActivityFeed() {
       `
     )
     .join("");
+
+  // Клик по никнейму автора события — переход в его профиль, отдельно
+  // от клика по остальной части элемента (который ведёт к публикации).
+  [...activityList.querySelectorAll(".activity-item-actor")].forEach((el) => {
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      activityPanel.classList.add("hidden");
+      openProfile(el.dataset.actor);
+    });
+  });
 
   [...activityList.querySelectorAll(".activity-item")].forEach((el) => {
     el.addEventListener("click", async () => {
@@ -1928,6 +2078,266 @@ activityBellBtn.addEventListener("click", async () => {
 
 activityCloseBtn.addEventListener("click", () => {
   activityPanel.classList.add("hidden");
+});
+
+/* ==================================================================
+   ПРОФИЛЬ АВТОРА
+   ================================================================== */
+let viewingProfileCode = null;
+let profileCache = {}; // owner_code -> profile row (кэш на время сессии)
+
+async function fetchProfile(ownerCode) {
+  if (profileCache[ownerCode]) return profileCache[ownerCode];
+  if (!db) return null;
+  const { data, error } = await db
+    .from(PROFILES_TABLE)
+    .select("*")
+    .eq("owner_code", ownerCode)
+    .maybeSingle();
+  if (error) {
+    console.error("[profile] не удалось загрузить профиль:", error);
+    return null;
+  }
+  profileCache[ownerCode] = data;
+  return data;
+}
+
+function displayNameFor(ownerCode, fallbackName) {
+  const p = profileCache[ownerCode];
+  return (p && p.display_name) || fallbackName || "Без имени";
+}
+
+async function openProfile(ownerCode) {
+  if (!ownerCode) return;
+  viewingProfileCode = ownerCode;
+
+  mainEl.classList.add("hidden");
+  profileView.classList.remove("hidden");
+  window.scrollTo(0, 0);
+
+  const profile = await fetchProfile(ownerCode);
+
+  const fallbackName =
+    (allPhotoRecords.find((r) => r.owner_code === ownerCode) || {}).owner_name ||
+    (allVideoRecords.find((r) => r.owner_code === ownerCode) || {}).owner_name ||
+    "Без имени";
+
+  profileName.textContent = (profile && profile.display_name) || fallbackName;
+  profileBio.textContent = (profile && profile.bio) || "";
+  profileBio.style.display = profile && profile.bio ? "block" : "none";
+  profileAvatar.src = profile && profile.avatar_path ? publicUrlFor(profile.avatar_path) : "assets/mtn.png";
+  profileBanner.src = profile && profile.banner_path ? publicUrlFor(profile.banner_path) : "";
+
+  const isMe = currentIdentity && currentIdentity.code === ownerCode;
+  profileEditBtn.classList.toggle("hidden", !isMe);
+  profileEditAvatarBtn.classList.toggle("hidden", !isMe);
+  profileEditBannerBtn.classList.toggle("hidden", !isMe);
+  profileFollowBtn.classList.toggle("hidden", !currentIdentity || isMe);
+
+  await refreshFollowButton(ownerCode);
+  await refreshProfileStats(ownerCode);
+
+  switchProfileTab("photo");
+}
+
+profileBackBtn.addEventListener("click", () => {
+  profileView.classList.add("hidden");
+  mainEl.classList.remove("hidden");
+  viewingProfileCode = null;
+  history.replaceState(null, "", location.pathname + location.search);
+});
+
+function switchProfileTab(kind) {
+  profileTabPhoto.classList.toggle("active", kind === "photo");
+  profileTabVideo.classList.toggle("active", kind === "video");
+  profileGalleryPhoto.classList.toggle("hidden", kind !== "photo");
+  profileGalleryVideo.classList.toggle("hidden", kind !== "video");
+  renderProfileGallery(kind);
+}
+
+profileTabPhoto.addEventListener("click", () => switchProfileTab("photo"));
+profileTabVideo.addEventListener("click", () => switchProfileTab("video"));
+
+function renderProfileGallery(kind) {
+  if (!viewingProfileCode) return;
+  const source = kind === "photo" ? allPhotoRecords : allVideoRecords;
+  const records = source.filter((r) => r.owner_code === viewingProfileCode);
+  const el = kind === "photo" ? profileGalleryPhoto : profileGalleryVideo;
+
+  profileEmpty.classList.toggle("hidden", records.length > 0);
+  el.innerHTML = "";
+
+  records.forEach((record, idx) => {
+    const card = document.createElement("div");
+    card.className = "card";
+    if (kind === "photo") {
+      const src = publicUrlFor(record.storage_path);
+      card.innerHTML = `<img src="${src}" alt="${record.name}" loading="lazy"><div class="name">${record.name}</div>`;
+      card.addEventListener("click", () => {
+        const galleryIdx = currentPhotoList.indexOf(record);
+        openLightbox(record, src, galleryIdx === -1 ? undefined : galleryIdx);
+      });
+    } else {
+      card.innerHTML = `
+        <div class="video-thumb"><img src="assets/video-cover.png" alt="${record.name}" loading="lazy"></div>
+        <div class="video-badge">${SOURCE_LABELS[record.source] || "Видео"}</div>
+        <div class="name">${record.name}</div>
+      `;
+      card.addEventListener("click", () => {
+        const galleryIdx = currentVideoList.indexOf(record);
+        openVideoLightbox(record, galleryIdx === -1 ? undefined : galleryIdx);
+      });
+    }
+    el.appendChild(card);
+  });
+}
+
+async function refreshProfileStats(ownerCode) {
+  profileFollowersCount.textContent = "…";
+  profileViewsCount.textContent = "…";
+  profilePostsCount.textContent = "…";
+
+  const [followersRes, photoViewsRes, videoViewsRes] = await Promise.all([
+    db.from(FOLLOWS_TABLE).select("id", { count: "exact", head: true }).eq("target_code", ownerCode),
+    db.from(VIEWS_TABLE).select("id", { count: "exact", head: true }).eq("target_type", "photo").in(
+      "target_id",
+      allPhotoRecords.filter((r) => r.owner_code === ownerCode).map((r) => r.id).length
+        ? allPhotoRecords.filter((r) => r.owner_code === ownerCode).map((r) => r.id)
+        : ["00000000-0000-0000-0000-000000000000"]
+    ),
+    db.from(VIEWS_TABLE).select("id", { count: "exact", head: true }).eq("target_type", "video").in(
+      "target_id",
+      allVideoRecords.filter((r) => r.owner_code === ownerCode).map((r) => r.id).length
+        ? allVideoRecords.filter((r) => r.owner_code === ownerCode).map((r) => r.id)
+        : ["00000000-0000-0000-0000-000000000000"]
+    ),
+  ]);
+
+  profileFollowersCount.textContent = followersRes.count || 0;
+  const totalViews = (photoViewsRes.count || 0) + (videoViewsRes.count || 0);
+  profileViewsCount.textContent = totalViews;
+
+  const postsCount =
+    allPhotoRecords.filter((r) => r.owner_code === ownerCode).length +
+    allVideoRecords.filter((r) => r.owner_code === ownerCode).length;
+  profilePostsCount.textContent = postsCount;
+}
+
+async function refreshFollowButton(ownerCode) {
+  if (!currentIdentity || currentIdentity.code === ownerCode) return;
+  const { data } = await db
+    .from(FOLLOWS_TABLE)
+    .select("id")
+    .eq("follower_code", currentIdentity.code)
+    .eq("target_code", ownerCode)
+    .maybeSingle();
+
+  const isFollowing = !!data;
+  profileFollowBtn.textContent = isFollowing ? "✓ Подписан" : "Подписаться";
+  profileFollowBtn.classList.toggle("following", isFollowing);
+}
+
+profileFollowBtn.addEventListener("click", async () => {
+  if (!currentIdentity || !viewingProfileCode) return;
+  const isFollowing = profileFollowBtn.classList.contains("following");
+
+  if (isFollowing) {
+    await db
+      .from(FOLLOWS_TABLE)
+      .delete()
+      .eq("follower_code", currentIdentity.code)
+      .eq("target_code", viewingProfileCode);
+  } else {
+    await db.from(FOLLOWS_TABLE).insert({
+      follower_code: currentIdentity.code,
+      follower_name: currentIdentity.name,
+      target_code: viewingProfileCode,
+    });
+    showToast("Подписка оформлена 🐿️");
+  }
+
+  await refreshFollowButton(viewingProfileCode);
+  await refreshProfileStats(viewingProfileCode);
+});
+
+/* ---------- Редактирование профиля (имя/описание) ---------- */
+profileEditBtn.addEventListener("click", async () => {
+  const profile = await fetchProfile(currentIdentity.code);
+  editProfileName.value = (profile && profile.display_name) || currentIdentity.name || "";
+  editProfileBio.value = (profile && profile.bio) || "";
+  editProfileModal.classList.add("active");
+});
+
+editProfileCancel.addEventListener("click", () => {
+  editProfileModal.classList.remove("active");
+});
+
+editProfileSave.addEventListener("click", async () => {
+  if (!currentIdentity) return;
+  const displayName = editProfileName.value.trim() || currentIdentity.name;
+  const bio = editProfileBio.value.trim() || null;
+
+  const { error } = await db.from(PROFILES_TABLE).upsert({
+    owner_code: currentIdentity.code,
+    display_name: displayName,
+    bio,
+    updated_at: new Date().toISOString(),
+  });
+
+  if (error) {
+    showToast("Не удалось сохранить профиль: " + error.message);
+    return;
+  }
+
+  delete profileCache[currentIdentity.code];
+  editProfileModal.classList.remove("active");
+  showToast("Профиль обновлён ✏️");
+  await openProfile(currentIdentity.code);
+});
+
+/* ---------- Загрузка аватара / шапки профиля ---------- */
+async function uploadProfileImage(file, field) {
+  if (!currentIdentity) return;
+  const ext = (file.name.split(".").pop() || "png").toLowerCase();
+  const path = `profiles/${currentIdentity.code}-${field}-${Date.now()}.${ext}`;
+
+  const { error: uploadError } = await db.storage.from(BUCKET_NAME).upload(path, file, {
+    cacheControl: "3600",
+    upsert: false,
+  });
+
+  if (uploadError) {
+    showToast("Не удалось загрузить картинку: " + uploadError.message);
+    return;
+  }
+
+  const updatePayload = { owner_code: currentIdentity.code, updated_at: new Date().toISOString() };
+  updatePayload[field] = path;
+
+  const { error: dbError } = await db.from(PROFILES_TABLE).upsert(updatePayload);
+  if (dbError) {
+    showToast("Не удалось сохранить: " + dbError.message);
+    return;
+  }
+
+  delete profileCache[currentIdentity.code];
+  showToast(field === "avatar_path" ? "Аватар обновлён 🐿️" : "Шапка профиля обновлена 🐿️");
+  await openProfile(currentIdentity.code);
+}
+
+profileEditAvatarBtn.addEventListener("click", () => avatarFileInput.click());
+profileEditBannerBtn.addEventListener("click", () => bannerFileInput.click());
+
+avatarFileInput.addEventListener("change", () => {
+  const file = avatarFileInput.files[0];
+  avatarFileInput.value = "";
+  if (file) uploadProfileImage(file, "avatar_path");
+});
+
+bannerFileInput.addEventListener("change", () => {
+  const file = bannerFileInput.files[0];
+  bannerFileInput.value = "";
+  if (file) uploadProfileImage(file, "banner_path");
 });
 
 /* ---------- Старт ---------- */

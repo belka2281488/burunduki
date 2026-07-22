@@ -524,6 +524,17 @@ main {
   font-size: 0.95rem;
 }
 
+.pick-btn.following {
+  background: #fff;
+  color: #a0522d;
+  border: 1px solid #a0522d;
+}
+
+.pick-btn.following:hover {
+  background: rgba(160, 82, 45, 0.08);
+  transform: none;
+}
+
 .pick-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -644,6 +655,18 @@ main {
   font-size: 0.78rem;
   text-align: center;
   margin-bottom: 10px;
+}
+
+.lightbox-author {
+  color: #d8b997;
+  font-size: 0.85rem;
+  text-align: center;
+  margin-bottom: 6px;
+  margin-top: -6px;
+}
+
+.lightbox-author:empty {
+  display: none;
 }
 
 .status {
@@ -1066,6 +1089,20 @@ main {
   padding: 4px 0;
 }
 
+.view-counter {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: center;
+  font-size: 0.72rem;
+  color: #7d6650;
+  letter-spacing: 0.2px;
+}
+
+.view-counter:empty {
+  display: none;
+}
+
 .rating-comment-item {
   display: flex;
   gap: 8px;
@@ -1126,4 +1163,194 @@ main {
 
 @media (max-width: 600px) {
   .magnifier { display: none !important; }
+}
+
+/* ==================================================================
+   СТРАНИЦА ПРОФИЛЯ
+   ================================================================== */
+.profile-view {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 16px 40px;
+}
+
+.profile-view.hidden {
+  display: none;
+}
+
+.profile-back-btn {
+  display: inline-block;
+  margin: 16px 0;
+  font-size: 0.9rem;
+}
+
+.profile-banner-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 1;
+  min-height: 100px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #d9a876, #a0522d);
+}
+
+.profile-banner {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.profile-banner[src=""], .profile-banner:not([src]) {
+  visibility: hidden;
+}
+
+.profile-edit-banner-btn {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.profile-edit-banner-btn:hover {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.profile-header {
+  display: flex;
+  gap: 18px;
+  align-items: flex-end;
+  margin-top: -46px;
+  padding: 0 8px;
+  position: relative;
+  z-index: 2;
+}
+
+.profile-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.profile-avatar {
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 4px solid #fdf6ec;
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.profile-edit-avatar-btn {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid #fdf6ec;
+  background: #a0522d;
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.profile-edit-avatar-btn:hover {
+  background: #8a4324;
+}
+
+.profile-info {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 6px;
+}
+
+.profile-name-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.profile-name {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: #4a2f1a;
+}
+
+.profile-bio {
+  margin-top: 6px;
+  color: #6b5236;
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+  max-width: 600px;
+}
+
+.profile-stats {
+  display: flex;
+  gap: 18px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.profile-stat {
+  font-size: 0.85rem;
+  color: #8a6f4e;
+}
+
+.profile-stat b {
+  color: #a0522d;
+  font-size: 0.95rem;
+}
+
+.profile-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 26px 0 16px;
+}
+
+.profile-empty {
+  text-align: center;
+  color: #a08668;
+  padding: 30px 0;
+}
+
+.profile-empty.hidden {
+  display: none;
+}
+
+.owner-tag-link {
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
+
+.owner-tag-link:hover {
+  color: #a0522d;
+}
+
+.activity-item-actor {
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
+
+.activity-item-actor:hover {
+  color: #a0522d;
+}
+
+@media (max-width: 600px) {
+  .profile-header {
+    flex-direction: column;
+    align-items: flex-start;
+    margin-top: -36px;
+  }
+  .profile-avatar {
+    width: 76px;
+    height: 76px;
+  }
 }

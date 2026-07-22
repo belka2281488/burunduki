@@ -81,6 +81,64 @@
   <div id="galleryVideo" class="gallery hidden"></div>
 </main>
 
+<!-- Страница профиля автора -->
+<div id="profileView" class="profile-view hidden">
+  <button id="profileBackBtn" class="link-btn profile-back-btn">← назад в галерею</button>
+
+  <div class="profile-banner-wrap">
+    <img id="profileBanner" class="profile-banner" src="" alt="">
+    <button id="profileEditBannerBtn" class="profile-edit-banner-btn hidden" title="Изменить шапку">🖼️ Изменить шапку</button>
+  </div>
+
+  <div class="profile-header">
+    <div class="profile-avatar-wrap">
+      <img id="profileAvatar" class="profile-avatar" src="assets/mtn.png" alt="">
+      <button id="profileEditAvatarBtn" class="profile-edit-avatar-btn hidden" title="Изменить аватар">✏️</button>
+    </div>
+    <div class="profile-info">
+      <div class="profile-name-row">
+        <span id="profileName" class="profile-name">—</span>
+        <button id="profileEditBtn" class="tool-btn hidden">✏️ Редактировать профиль</button>
+        <button id="profileFollowBtn" class="pick-btn small hidden">Подписаться</button>
+      </div>
+      <div id="profileBio" class="profile-bio"></div>
+      <div class="profile-stats">
+        <div class="profile-stat"><b id="profileFollowersCount">0</b> подписчиков</div>
+        <div class="profile-stat"><b id="profileViewsCount">0</b> просмотров</div>
+        <div class="profile-stat"><b id="profilePostsCount">0</b> публикаций</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="profile-tabs">
+    <button id="profileTabPhoto" class="tab-btn active">🖼️ Фото</button>
+    <button id="profileTabVideo" class="tab-btn">🎬 Видео</button>
+  </div>
+
+  <div id="profileGalleryPhoto" class="gallery"></div>
+  <div id="profileGalleryVideo" class="gallery hidden"></div>
+  <div id="profileEmpty" class="profile-empty hidden">Пока здесь пусто 🐿️</div>
+</div>
+
+<!-- модалка редактирования профиля -->
+<div id="editProfileModal" class="modal">
+  <div class="modal-box">
+    <h3>Редактировать профиль</h3>
+    <label class="modal-label">Никнейм</label>
+    <input type="text" id="editProfileName" class="modal-input" placeholder="твоё имя">
+    <label class="modal-label">Описание профиля</label>
+    <textarea id="editProfileBio" class="modal-input modal-textarea" placeholder="расскажи о себе"></textarea>
+    <div class="modal-hint">Аватар и шапку профиля можно поменять кнопками прямо на странице профиля.</div>
+    <div class="modal-actions">
+      <button id="editProfileCancel" class="tool-btn">Отмена</button>
+      <button id="editProfileSave" class="pick-btn small">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="avatarFileInput" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none">
+<input type="file" id="bannerFileInput" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none">
+
 <input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none">
 
 <!-- модалка "как тебя зовут" -->
@@ -179,6 +237,7 @@
 
   <div class="lightbox-main">
   <div class="lightbox-name" id="lightboxName"></div>
+  <div class="lightbox-author owner-tag-link" id="lightboxAuthor"></div>
   <div class="lightbox-description" id="lightboxDescription"></div>
   <div class="lightbox-date" id="lightboxDate"></div>
 
@@ -229,6 +288,7 @@
     </div>
 
     <div class="rating-comments" id="photoRatingComments"></div>
+    <div class="view-counter" id="photoViewCounter"></div>
   </div>
 </div>
 
@@ -238,6 +298,7 @@
 
   <div class="lightbox-main">
   <div class="lightbox-name" id="videoLightboxName"></div>
+  <div class="lightbox-author owner-tag-link" id="videoLightboxAuthor"></div>
   <div class="lightbox-description" id="videoLightboxDescription"></div>
   <div class="lightbox-date" id="videoLightboxDate"></div>
 
@@ -281,6 +342,7 @@
     </div>
 
     <div class="rating-comments" id="videoRatingComments"></div>
+    <div class="view-counter" id="videoViewCounter"></div>
   </div>
 </div>
 

@@ -15,6 +15,7 @@
     Ты: <span id="whoAmI">—</span>
     <span class="giger-badge" id="whoAmIGigers" title="Твои гиперзадки"></span>
     <button id="changeNameBtn" class="link-btn">сменить имя</button>
+    <button id="myProfileBtn" class="link-btn">мой профиль</button>
     <button id="activityBellBtn" class="activity-bell-btn" title="Центр активности" aria-label="Центр активности">
       🔔<span id="activityBadge" class="activity-badge hidden">0</span>
     </button>
@@ -93,6 +94,7 @@
   <div class="profile-header">
     <div class="profile-avatar-wrap">
       <img id="profileAvatar" class="profile-avatar" src="assets/mtn.png" alt="">
+      <span id="profileOnlineDot" class="avatar-online-dot" data-online-for="" title="Сейчас на сайте"></span>
       <button id="profileEditAvatarBtn" class="profile-edit-avatar-btn hidden" title="Изменить аватар">✏️</button>
     </div>
     <div class="profile-info">
@@ -174,6 +176,11 @@
       <div class="modal-hint">Появится у всех только после одобрения в админ-панельке.</div>
     </div>
 
+    <label class="followers-only-toggle">
+      <input type="checkbox" id="uploadFollowersOnly">
+      <span>🔒 Только для подписчиков</span>
+    </label>
+
     <div class="modal-actions">
       <button id="uploadCancel" class="tool-btn">Отмена</button>
       <button id="uploadConfirm" class="pick-btn small">Добавить в галерею</button>
@@ -211,6 +218,11 @@
       <input type="text" id="newVideoCategoryName" class="modal-input" placeholder="название нового раздела">
       <div class="modal-hint">Появится у всех только после одобрения в админ-панельке.</div>
     </div>
+
+    <label class="followers-only-toggle">
+      <input type="checkbox" id="videoFollowersOnly">
+      <span>🔒 Только для подписчиков</span>
+    </label>
 
     <div class="modal-actions">
       <button id="videoCancel" class="tool-btn">Отмена</button>
@@ -274,7 +286,18 @@
 
     <div class="rating-own">
       <div class="rating-picker" id="photoRatingPicker"></div>
-      <textarea id="photoRatingComment" class="modal-input modal-textarea rating-comment-input" placeholder="Комментарий (необязательно)"></textarea>
+      <button id="photoRatingSubmit" class="pick-btn small">Оценить</button>
+    </div>
+
+    <div class="comments-section">
+      <div class="comments-section-title">Комментарии</div>
+      <div class="comments-list" id="photoCommentsList"></div>
+
+      <div class="comment-reply-hint hidden" id="photoReplyHint">
+        Ответ для <b id="photoReplyHintName"></b>
+        <button id="photoReplyCancelBtn" type="button" class="comment-reply-cancel" title="Отменить ответ">✕</button>
+      </div>
+      <textarea id="photoCommentInput" class="modal-input modal-textarea rating-comment-input" placeholder="Написать комментарий..."></textarea>
 
       <div class="giger-gift-box" id="photoGigerBox">
         <label class="giger-gift-toggle">
@@ -284,11 +307,11 @@
         </label>
       </div>
 
-      <button id="photoRatingSubmit" class="pick-btn small">Оценить</button>
+      <button id="photoCommentSubmit" class="pick-btn small">Отправить</button>
     </div>
 
-    <div class="rating-comments" id="photoRatingComments"></div>
     <div class="view-counter" id="photoViewCounter"></div>
+    <div class="live-viewers hidden" id="photoLiveViewers"></div>
   </div>
 </div>
 
@@ -328,7 +351,18 @@
 
     <div class="rating-own">
       <div class="rating-picker" id="videoRatingPicker"></div>
-      <textarea id="videoRatingComment" class="modal-input modal-textarea rating-comment-input" placeholder="Комментарий (необязательно)"></textarea>
+      <button id="videoRatingSubmit" class="pick-btn small">Оценить</button>
+    </div>
+
+    <div class="comments-section">
+      <div class="comments-section-title">Комментарии</div>
+      <div class="comments-list" id="videoCommentsList"></div>
+
+      <div class="comment-reply-hint hidden" id="videoReplyHint">
+        Ответ для <b id="videoReplyHintName"></b>
+        <button id="videoReplyCancelBtn" type="button" class="comment-reply-cancel" title="Отменить ответ">✕</button>
+      </div>
+      <textarea id="videoCommentInput" class="modal-input modal-textarea rating-comment-input" placeholder="Написать комментарий..."></textarea>
 
       <div class="giger-gift-box" id="videoGigerBox">
         <label class="giger-gift-toggle">
@@ -338,11 +372,11 @@
         </label>
       </div>
 
-      <button id="videoRatingSubmit" class="pick-btn small">Оценить</button>
+      <button id="videoCommentSubmit" class="pick-btn small">Отправить</button>
     </div>
 
-    <div class="rating-comments" id="videoRatingComments"></div>
     <div class="view-counter" id="videoViewCounter"></div>
+    <div class="live-viewers hidden" id="videoLiveViewers"></div>
   </div>
 </div>
 

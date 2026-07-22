@@ -118,6 +118,62 @@ main {
   display: none;
 }
 
+/* Анимация "тряски" колокольчика при живом уведомлении (Supabase Realtime) */
+@keyframes bell-bump-anim {
+  0% { transform: rotate(0deg); }
+  15% { transform: rotate(-18deg); }
+  30% { transform: rotate(14deg); }
+  45% { transform: rotate(-10deg); }
+  60% { transform: rotate(7deg); }
+  75% { transform: rotate(-4deg); }
+  100% { transform: rotate(0deg); }
+}
+
+.activity-bell-btn.bell-bump {
+  animation: bell-bump-anim 0.6s ease;
+}
+
+/* ---------- Онлайн-статус (Supabase Realtime Presence) ---------- */
+.avatar-online-dot {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #3ecf5e;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  pointer-events: none;
+}
+
+.avatar-online-dot.is-online {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Маленькая точка рядом с именем автора (карточки, лайтбокс, комментарии) */
+.online-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #3ecf5e;
+  margin-right: 5px;
+  vertical-align: middle;
+  opacity: 0;
+  transform: scale(0.5);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.online-dot.is-online {
+  opacity: 1;
+  transform: scale(1);
+}
+
 .activity-panel {
   max-width: 480px;
   margin: 0 auto 20px;
@@ -524,6 +580,26 @@ main {
   font-size: 0.95rem;
 }
 
+.followers-only-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(160, 82, 45, 0.25);
+  border-radius: 10px;
+  font-size: 0.88rem;
+  color: #6b5236;
+  cursor: pointer;
+}
+
+.followers-only-toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: #a0522d;
+  cursor: pointer;
+}
+
 .pick-btn.following {
   background: #fff;
   color: #a0522d;
@@ -689,6 +765,23 @@ main {
   box-shadow: 0 4px 14px rgba(160, 82, 45, 0.15);
   cursor: pointer;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
+  position: relative;
+}
+
+.followers-only-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  z-index: 2;
 }
 
 .card:hover {
@@ -696,7 +789,7 @@ main {
   box-shadow: 0 8px 22px rgba(160, 82, 45, 0.28);
 }
 
-#galleryPhoto .card img {
+.gallery .card img {
   width: 100%;
   height: 180px;
   object-fit: cover;
@@ -1103,6 +1196,35 @@ main {
   display: none;
 }
 
+.live-viewers {
+  margin-top: 4px;
+  text-align: center;
+  font-size: 0.72rem;
+  color: #3ecf5e;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.live-viewers.hidden {
+  display: none;
+}
+
+.live-viewers .live-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #3ecf5e;
+  margin-right: 5px;
+  vertical-align: middle;
+  animation: live-dot-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes live-dot-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
 .rating-comment-item {
   display: flex;
   gap: 8px;
@@ -1147,6 +1269,122 @@ main {
   margin-top: 2px;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.comments-section {
+  padding-top: 14px;
+  margin-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.comments-section-title {
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.comments-list {
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.comment-item {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.comment-item-reply {
+  margin-left: 20px;
+  border-left: 2px solid rgba(62, 207, 94, 0.4);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.comment-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.comment-author {
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+.comment-time {
+  color: #a48561;
+  font-size: 0.7rem;
+  margin-left: auto;
+}
+
+.comment-reply-tag {
+  color: #d8b997;
+  font-size: 0.72rem;
+  margin-top: 2px;
+}
+
+.comment-text {
+  color: #f2e2cd;
+  font-size: 0.84rem;
+  margin-top: 3px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.comment-reply-btn {
+  margin-top: 4px;
+  background: none;
+  border: none;
+  color: #3ecf5e;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.comment-reply-btn:hover {
+  text-decoration: underline;
+}
+
+.comment-reply-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.76rem;
+  color: #d8b997;
+  background: rgba(62, 207, 94, 0.1);
+  padding: 5px 8px;
+  border-radius: 6px;
+}
+
+.comment-reply-hint.hidden {
+  display: none;
+}
+
+.comment-reply-hint b {
+  color: #fff;
+}
+
+.comment-reply-cancel {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: #d8b997;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0 2px;
+}
+
+.comment-reply-cancel:hover {
+  color: #fff;
 }
 
 @media (max-width: 900px) {

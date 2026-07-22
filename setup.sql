@@ -442,3 +442,9 @@ grant execute on function notify_followers_new_post(text, text, text, uuid, text
 alter table burunduk_activity drop constraint if exists burunduk_activity_kind_check;
 alter table burunduk_activity add constraint burunduk_activity_kind_check
   check (kind in ('view', 'comment', 'gift', 'new_post', 'follow'));
+-- Выполни в Supabase SQL Editor.
+-- Добавляет флаг "только для подписчиков" к фото и видео.
+-- По умолчанию false (публикация видна всем, как раньше).
+
+alter table burunduki add column if not exists followers_only boolean not null default false;
+alter table burunduki_videos add column if not exists followers_only boolean not null default false;

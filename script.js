@@ -12,6 +12,7 @@ const GIGER_TABLE = "burunduk_gigers";
 const GIGER_GIFTS_TABLE = "burunduk_giger_gifts";
 const VIEWS_TABLE = "burunduk_views";
 const ACTIVITY_TABLE = "burunduk_activity";
+const COMMENTS_TABLE = "burunduk_comments";
 const PROFILES_TABLE = "burunduk_profiles";
 const FOLLOWS_TABLE = "burunduk_follows";
 
@@ -54,6 +55,7 @@ const whoAmIEl = document.getElementById("whoAmI");
 const whoAmIGigers = document.getElementById("whoAmIGigers");
 const gigerRemoveSound = document.getElementById("gigerRemoveSound");
 const changeNameBtn = document.getElementById("changeNameBtn");
+const myProfileBtn = document.getElementById("myProfileBtn");
 const nameModal = document.getElementById("nameModal");
 const nameInput = document.getElementById("nameInput");
 const nameConfirm = document.getElementById("nameConfirm");
@@ -70,6 +72,7 @@ const uploadConfirm = document.getElementById("uploadConfirm");
 const uploadCategory = document.getElementById("uploadCategory");
 const newCategoryWrap = document.getElementById("newCategoryWrap");
 const newCategoryName = document.getElementById("newCategoryName");
+const uploadFollowersOnly = document.getElementById("uploadFollowersOnly");
 const categoryTabsEl = document.getElementById("categoryTabs");
 const NEW_CATEGORY_VALUE = "__new__";
 
@@ -80,6 +83,7 @@ const lightboxAuthor = document.getElementById("lightboxAuthor");
 const lightboxDescription = document.getElementById("lightboxDescription");
 const lightboxDate = document.getElementById("lightboxDate");
 const photoViewCounter = document.getElementById("photoViewCounter");
+const photoLiveViewers = document.getElementById("photoLiveViewers");
 const lightboxHint = document.getElementById("lightboxHint");
 const lightboxClose = document.getElementById("lightboxClose");
 const activityBellBtn = document.getElementById("activityBellBtn");
@@ -95,6 +99,7 @@ const profileBackBtn = document.getElementById("profileBackBtn");
 const profileBanner = document.getElementById("profileBanner");
 const profileEditBannerBtn = document.getElementById("profileEditBannerBtn");
 const profileAvatar = document.getElementById("profileAvatar");
+const profileOnlineDot = document.getElementById("profileOnlineDot");
 const profileEditAvatarBtn = document.getElementById("profileEditAvatarBtn");
 const profileName = document.getElementById("profileName");
 const profileEditBtn = document.getElementById("profileEditBtn");
@@ -142,6 +147,7 @@ const videoConfirm = document.getElementById("videoConfirm");
 const videoCategory = document.getElementById("videoCategory");
 const newVideoCategoryWrap = document.getElementById("newVideoCategoryWrap");
 const newVideoCategoryName = document.getElementById("newVideoCategoryName");
+const videoFollowersOnly = document.getElementById("videoFollowersOnly");
 
 const videoLightbox = document.getElementById("videoLightbox");
 const videoLightboxClose = document.getElementById("videoLightboxClose");
@@ -150,6 +156,7 @@ const videoLightboxAuthor = document.getElementById("videoLightboxAuthor");
 const videoLightboxDescription = document.getElementById("videoLightboxDescription");
 const videoLightboxDate = document.getElementById("videoLightboxDate");
 const videoViewCounter = document.getElementById("videoViewCounter");
+const videoLiveViewers = document.getElementById("videoLiveViewers");
 const videoContainer = document.getElementById("videoContainer");
 const videoOpenBtn = document.getElementById("videoOpenBtn");
 const videoShareBtn = document.getElementById("videoShareBtn");
@@ -163,23 +170,42 @@ const ratingEls = {
     score: document.getElementById("photoRatingScore"),
     label: document.getElementById("photoRatingLabel"),
     picker: document.getElementById("photoRatingPicker"),
-    comment: document.getElementById("photoRatingComment"),
     submit: document.getElementById("photoRatingSubmit"),
-    comments: document.getElementById("photoRatingComments"),
   },
   video: {
     summaryImg: document.getElementById("videoRatingSummaryImg"),
     score: document.getElementById("videoRatingScore"),
     label: document.getElementById("videoRatingLabel"),
     picker: document.getElementById("videoRatingPicker"),
-    comment: document.getElementById("videoRatingComment"),
     submit: document.getElementById("videoRatingSubmit"),
-    comments: document.getElementById("videoRatingComments"),
   },
 };
 
 let selectedRank = { photo: null, video: null };
 let currentRatingTarget = { photo: null, video: null };
+
+/* ---------- DOM: комментарии (отдельная лента, не привязана к оценке) ---------- */
+const commentEls = {
+  photo: {
+    list: document.getElementById("photoCommentsList"),
+    input: document.getElementById("photoCommentInput"),
+    submit: document.getElementById("photoCommentSubmit"),
+    replyHint: document.getElementById("photoReplyHint"),
+    replyHintName: document.getElementById("photoReplyHintName"),
+    replyCancel: document.getElementById("photoReplyCancelBtn"),
+  },
+  video: {
+    list: document.getElementById("videoCommentsList"),
+    input: document.getElementById("videoCommentInput"),
+    submit: document.getElementById("videoCommentSubmit"),
+    replyHint: document.getElementById("videoReplyHint"),
+    replyHintName: document.getElementById("videoReplyHintName"),
+    replyCancel: document.getElementById("videoReplyCancelBtn"),
+  },
+};
+
+// Кому сейчас отвечаем: { id, name } комментария или null (обычный комментарий).
+let commentReplyTarget = { photo: null, video: null };
 
 /* ---------- DOM: гиперзадки ---------- */
 const gigerEls = {
@@ -252,11 +278,21 @@ nameConfirm.addEventListener("click", () => {
   refreshWhoAmI();
   refreshMyGigerBalance();
   refreshActivityBadge();
+  subscribeActivityRealtime();
+  subscribeSitePresence();
 });
 
 changeNameBtn.addEventListener("click", () => {
   nameInput.value = currentIdentity ? currentIdentity.name : "";
   nameModal.classList.add("active");
+});
+
+myProfileBtn.addEventListener("click", () => {
+  if (!currentIdentity) {
+    nameModal.classList.add("active");
+    return;
+  }
+  openProfile(currentIdentity.code);
 });
 
 function isOwner(record) {
@@ -580,6 +616,31 @@ async function createPendingCategory(name, ownerName, ownerCode) {
   return data;
 }
 
+let mySubscriptions = null; // Set с owner_code тех, на кого подписан текущий пользователь
+
+async function loadMySubscriptions() {
+  if (!currentIdentity || !db) {
+    mySubscriptions = new Set();
+    return mySubscriptions;
+  }
+  const { data, error } = await db
+    .from(FOLLOWS_TABLE)
+    .select("target_code")
+    .eq("follower_code", currentIdentity.code);
+
+  mySubscriptions = new Set(error ? [] : (data || []).map((r) => r.target_code));
+  return mySubscriptions;
+}
+
+// true, если текущий пользователь может видеть запись: либо она открытая,
+// либо это его собственная публикация, либо он подписан на автора.
+function canSeeRecord(record) {
+  if (!record.followers_only) return true;
+  if (currentIdentity && record.owner_code === currentIdentity.code) return true;
+  if (!mySubscriptions) return false; // подписки ещё не загружены — на всякий случай скрываем
+  return mySubscriptions.has(record.owner_code);
+}
+
 async function loadPhotos() {
   statusEl.textContent = "Загружаю бурундуков...";
 
@@ -593,7 +654,8 @@ async function loadPhotos() {
     return;
   }
 
-  allPhotoRecords = data || [];
+  if (!mySubscriptions) await loadMySubscriptions();
+  allPhotoRecords = (data || []).filter(canSeeRecord);
   fillAuthorFilter();
 
   if (!allPhotoRecords.length) {
@@ -637,8 +699,9 @@ function renderPhotoGallery(records) {
     card.className = "card";
     card.innerHTML = `
       <img src="${src}" alt="${record.name}" loading="lazy">
+      ${record.followers_only ? `<div class="followers-only-badge" title="Только для подписчиков">🔒</div>` : ""}
       <div class="name">${record.name}</div>
-      ${record.owner_name ? `<div class="owner-tag owner-tag-link" data-owner="${record.owner_code}">от ${record.owner_name}</div>` : ""}
+      ${record.owner_name ? `<div class="owner-tag owner-tag-link" data-owner="${record.owner_code}"><span class="online-dot" data-online-for="${record.owner_code}"></span>от ${record.owner_name}</div>` : ""}
     `;
     card.addEventListener("click", () => openLightbox(record, src, idx));
     const ownerTag = card.querySelector(".owner-tag-link");
@@ -650,6 +713,7 @@ function renderPhotoGallery(records) {
     }
     galleryPhoto.appendChild(card);
   });
+  applyOnlinePresence();
 }
 
 uploadPhotoBtn.addEventListener("click", () => {
@@ -663,6 +727,7 @@ uploadPhotoBtn.addEventListener("click", () => {
   if (uploadCategory) uploadCategory.value = allCategories[0] ? allCategories[0].id : NEW_CATEGORY_VALUE;
   if (newCategoryWrap) newCategoryWrap.classList.add("hidden");
   if (newCategoryName) newCategoryName.value = "";
+  if (uploadFollowersOnly) uploadFollowersOnly.checked = false;
   fileInput.click();
 });
 
@@ -692,7 +757,11 @@ uploadConfirm.addEventListener("click", async () => {
     uploadConfirm.textContent = "Сохраняю...";
     const { error } = await db
       .from(PHOTO_TABLE)
-      .update({ name: displayName, description: description || null })
+      .update({
+        name: displayName,
+        description: description || null,
+        followers_only: uploadFollowersOnly.checked,
+      })
       .eq("id", editingPhotoRecord.id);
 
     uploadConfirm.disabled = false;
@@ -768,6 +837,7 @@ uploadConfirm.addEventListener("click", async () => {
       owner_name: currentIdentity ? currentIdentity.name : null,
       owner_code: currentIdentity ? currentIdentity.code : null,
       category_id: categoryId,
+      followers_only: uploadFollowersOnly.checked,
     })
     .select()
     .single();
@@ -801,6 +871,7 @@ editBtn.addEventListener("click", () => {
   uploadPreview.src = currentPhotoSrc;
   uploadName.value = currentPhotoRecord.name;
   uploadDescription.value = currentPhotoRecord.description || "";
+  if (uploadFollowersOnly) uploadFollowersOnly.checked = !!currentPhotoRecord.followers_only;
   uploadModal.classList.add("active");
 });
 
@@ -824,7 +895,7 @@ function openLightbox(record, src, index) {
   lightboxDescription.style.display = record.description ? "block" : "none";
   lightboxDate.textContent = formatPublishDate(record.created_at);
   if (record.owner_name) {
-    lightboxAuthor.textContent = `от ${record.owner_name}`;
+    lightboxAuthor.innerHTML = `<span class="online-dot" data-online-for="${record.owner_code || ""}"></span>от ${escapeHtml(record.owner_name)}`;
     lightboxAuthor.dataset.owner = record.owner_code || "";
     lightboxAuthor.style.display = record.owner_code ? "block" : "none";
   } else {
@@ -842,9 +913,13 @@ function openLightbox(record, src, index) {
 
   lightbox.classList.add("active");
   loadRatings("photo", record.id);
+  loadComments("photo", record.id);
+  setReplyTarget("photo", null);
   loadGiftState("photo", record);
   registerView("photo", record).then(() => showViewCount("photo", record.id, photoViewCounter));
   showViewCount("photo", record.id, photoViewCounter);
+  applyOnlinePresence();
+  joinViewingPresence("photo", record.id);
 }
 
 function updateLightboxNavButtons() {
@@ -893,6 +968,7 @@ function closeLightbox() {
   magnifier.style.display = "none";
   currentPhotoRecord = null;
   currentPhotoIndex = -1;
+  leaveViewingPresence();
 }
 
 lightboxClose.addEventListener("click", closeLightbox);
@@ -1055,7 +1131,8 @@ async function loadVideos() {
     return;
   }
 
-  allVideoRecords = data || [];
+  if (!mySubscriptions) await loadMySubscriptions();
+  allVideoRecords = (data || []).filter(canSeeRecord);
   fillAuthorFilter();
 
   if (!allVideoRecords.length) {
@@ -1088,9 +1165,10 @@ function renderVideoGallery(records) {
       <div class="video-thumb">
         <img src="assets/video-cover.png" alt="${record.name}" loading="lazy">
       </div>
+      ${record.followers_only ? `<div class="followers-only-badge" title="Только для подписчиков">🔒</div>` : ""}
       <div class="video-badge">${SOURCE_LABELS[record.source] || "Видео"}</div>
       <div class="name">${record.name}</div>
-      ${record.owner_name ? `<div class="owner-tag owner-tag-link" data-owner="${record.owner_code}">от ${record.owner_name}</div>` : ""}
+      ${record.owner_name ? `<div class="owner-tag owner-tag-link" data-owner="${record.owner_code}"><span class="online-dot" data-online-for="${record.owner_code}"></span>от ${record.owner_name}</div>` : ""}
     `;
     card.addEventListener("click", () => openVideoLightbox(record, idx));
     const ownerTag = card.querySelector(".owner-tag-link");
@@ -1102,6 +1180,7 @@ function renderVideoGallery(records) {
     }
     galleryVideo.appendChild(card);
   });
+  applyOnlinePresence();
 }
 
 /* ---------- Определение embed-ссылки по источнику ---------- */
@@ -1163,7 +1242,7 @@ function openVideoLightbox(record, index) {
   videoLightboxDescription.style.display = record.description ? "block" : "none";
   videoLightboxDate.textContent = formatPublishDate(record.created_at);
   if (record.owner_name) {
-    videoLightboxAuthor.textContent = `от ${record.owner_name}`;
+    videoLightboxAuthor.innerHTML = `<span class="online-dot" data-online-for="${record.owner_code || ""}"></span>от ${escapeHtml(record.owner_name)}`;
     videoLightboxAuthor.dataset.owner = record.owner_code || "";
     videoLightboxAuthor.style.display = record.owner_code ? "block" : "none";
   } else {
@@ -1183,9 +1262,13 @@ function openVideoLightbox(record, index) {
 
   videoLightbox.classList.add("active");
   loadRatings("video", record.id);
+  loadComments("video", record.id);
+  setReplyTarget("video", null);
   loadGiftState("video", record);
   registerView("video", record).then(() => showViewCount("video", record.id, videoViewCounter));
   showViewCount("video", record.id, videoViewCounter);
+  applyOnlinePresence();
+  joinViewingPresence("video", record.id);
 }
 
 function updateVideoNavButtons() {
@@ -1220,6 +1303,7 @@ function closeVideoLightbox() {
   videoContainer.innerHTML = ""; // остановить воспроизведение
   currentVideoRecord = null;
   currentVideoIndex = -1;
+  leaveViewingPresence();
 }
 
 videoLightboxClose.addEventListener("click", closeVideoLightbox);
@@ -1260,6 +1344,7 @@ uploadVideoBtn.addEventListener("click", () => {
   if (videoCategory) videoCategory.value = allCategories[0] ? allCategories[0].id : NEW_CATEGORY_VALUE;
   if (newVideoCategoryWrap) newVideoCategoryWrap.classList.add("hidden");
   if (newVideoCategoryName) newVideoCategoryName.value = "";
+  if (videoFollowersOnly) videoFollowersOnly.checked = false;
   videoModal.classList.add("active");
 });
 
@@ -1284,7 +1369,13 @@ videoConfirm.addEventListener("click", async () => {
     videoConfirm.textContent = "Сохраняю...";
     const { error } = await db
       .from(VIDEO_TABLE)
-      .update({ video_url: url, source: selectedSource, name: displayName, description: description || null })
+      .update({
+        video_url: url,
+        source: selectedSource,
+        name: displayName,
+        description: description || null,
+        followers_only: videoFollowersOnly.checked,
+      })
       .eq("id", editingVideoRecord.id);
 
     videoConfirm.disabled = false;
@@ -1346,6 +1437,7 @@ videoConfirm.addEventListener("click", async () => {
       owner_name: currentIdentity ? currentIdentity.name : null,
       owner_code: currentIdentity ? currentIdentity.code : null,
       category_id: categoryId,
+      followers_only: videoFollowersOnly.checked,
     })
     .select()
     .single();
@@ -1380,6 +1472,7 @@ videoEditBtn.addEventListener("click", () => {
   selectedSource = currentVideoRecord.source;
   [...sourcePicker.children].forEach(b => b.classList.toggle("active", b.dataset.source === selectedSource));
   videoUrlHint.textContent = SOURCE_HINTS[selectedSource] || "";
+  if (videoFollowersOnly) videoFollowersOnly.checked = !!currentVideoRecord.followers_only;
   videoModal.classList.add("active");
 });
 
@@ -1448,35 +1541,9 @@ function renderRatingSummary(kind, ratings) {
   els.label.textContent = `${level.code} — ${level.label}`;
 }
 
-function renderRatingComments(kind, ratings) {
-  const el = ratingEls[kind].comments;
-  el.innerHTML = "";
-  if (!ratings.length) {
-    el.innerHTML = `<div class="rating-comments-empty">Комментариев пока нет</div>`;
-    return;
-  }
-  ratings.forEach((r) => {
-    const level = RANK_LEVELS[r.rank - 1];
-    const item = document.createElement("div");
-    item.className = "rating-comment-item";
-    item.innerHTML = `
-      <img src="${level.asset}" alt="${level.label}" class="rating-comment-icon">
-      <div class="rating-comment-body">
-        <div class="rating-comment-head">
-          <span class="rating-comment-author">${escapeHtml(r.rater_name || "аноним")}</span>
-          <span class="rating-comment-rank">${level.code}</span>
-        </div>
-        ${r.comment ? `<div class="rating-comment-text">${escapeHtml(r.comment)}</div>` : ""}
-      </div>
-    `;
-    el.appendChild(item);
-  });
-}
-
 async function loadRatings(kind, targetId) {
   currentRatingTarget[kind] = targetId;
   selectedRank[kind] = null;
-  ratingEls[kind].comment.value = "";
   [...ratingEls[kind].picker.children].forEach((b) => b.classList.remove("active"));
 
   const { data, error } = await db
@@ -1490,19 +1557,17 @@ async function loadRatings(kind, targetId) {
     ratingEls[kind].summaryImg.style.visibility = "hidden";
     ratingEls[kind].score.textContent = "Не удалось загрузить оценки";
     ratingEls[kind].label.textContent = "";
-    ratingEls[kind].comments.innerHTML = "";
     return;
   }
 
   const ratings = data || [];
   renderRatingSummary(kind, ratings);
-  renderRatingComments(kind, ratings);
+  applyOnlinePresence();
 
   if (currentIdentity) {
     const own = ratings.find((r) => r.rater_code === currentIdentity.code);
     if (own) {
       selectedRank[kind] = own.rank;
-      ratingEls[kind].comment.value = own.comment || "";
       const ownBtn = [...ratingEls[kind].picker.children].find((b) => Number(b.dataset.rank) === own.rank);
       if (ownBtn) ownBtn.classList.add("active");
     }
@@ -1531,7 +1596,6 @@ async function submitRating(kind) {
       target_type: kind,
       target_id: currentRatingTarget[kind],
       rank: selectedRank[kind],
-      comment: ratingEls[kind].comment.value.trim() || null,
       rater_name: currentIdentity.name,
       rater_code: currentIdentity.code,
     },
@@ -1545,32 +1609,154 @@ async function submitRating(kind) {
     return;
   }
 
-  const commentText = ratingEls[kind].comment.value.trim();
-
-  // Если отмечена галочка "подарить гиперзадку" и человек ещё не дарил
-  // её этой карточке раньше — дарим вместе с оценкой.
-  const gEls = gigerEls[kind];
-  const record = kind === "photo" ? currentPhotoRecord : currentVideoRecord;
-  if (gEls.checkbox.checked && !alreadyGifted[kind] && record) {
-    await sendGiger(kind, record, commentText);
-  } else {
-    showToast("Оценка сохранена 🐿️");
-  }
-
-  if (commentText && record) {
-    logActivity("comment", kind, record, commentText);
-  }
+  showToast("Оценка сохранена 🐿️");
 
   btn.disabled = false;
   btn.textContent = "Оценить";
 
   loadRatings(kind, currentRatingTarget[kind]);
-  loadGiftState(kind, record);
   loadAllRatings();
 }
 
 ratingEls.photo.submit.addEventListener("click", () => submitRating("photo"));
 ratingEls.video.submit.addEventListener("click", () => submitRating("video"));
+
+/* ==================================================================
+   КОММЕНТАРИИ — отдельная лента, независимая от оценки. Можно оставлять
+   сколько угодно комментариев подряд, без обязательной оценки, отвечать
+   на конкретный комментарий (reply_to_id) и дарить гиперзадку прямо
+   вместе с комментарием (тоже без обязательной оценки).
+   ================================================================== */
+function setReplyTarget(kind, comment) {
+  commentReplyTarget[kind] = comment ? { id: comment.id, name: comment.author_name || "аноним" } : null;
+  const els = commentEls[kind];
+  if (comment) {
+    els.replyHintName.textContent = comment.author_name || "аноним";
+    els.replyHint.classList.remove("hidden");
+  } else {
+    els.replyHint.classList.add("hidden");
+  }
+  els.input.focus();
+}
+
+function renderComments(kind, comments) {
+  const els = commentEls[kind];
+  els.list.innerHTML = "";
+  if (!comments.length) {
+    els.list.innerHTML = `<div class="rating-comments-empty">Комментариев пока нет — стань первым!</div>`;
+    return;
+  }
+
+  const byId = new Map(comments.map((c) => [c.id, c]));
+
+  comments.forEach((c) => {
+    const item = document.createElement("div");
+    item.className = "comment-item" + (c.reply_to_id ? " comment-item-reply" : "");
+
+    const parent = c.reply_to_id ? byId.get(c.reply_to_id) : null;
+    const replyTag = parent
+      ? `<div class="comment-reply-tag">→ ${escapeHtml(parent.author_name || "аноним")}</div>`
+      : "";
+
+    item.innerHTML = `
+      <div class="comment-head">
+        <span class="online-dot" data-online-for="${c.author_code || ""}"></span>
+        <span class="comment-author">${escapeHtml(c.author_name || "аноним")}</span>
+        <span class="comment-time">${timeAgo(c.created_at)}</span>
+      </div>
+      ${replyTag}
+      <div class="comment-text">${escapeHtml(c.text || "").replace(/\n/g, "<br>")}</div>
+      <button type="button" class="comment-reply-btn" data-comment-id="${c.id}">Ответить</button>
+    `;
+
+    const replyBtn = item.querySelector(".comment-reply-btn");
+    replyBtn.addEventListener("click", () => setReplyTarget(kind, c));
+
+    els.list.appendChild(item);
+  });
+
+  applyOnlinePresence();
+}
+
+async function loadComments(kind, targetId) {
+  const { data, error } = await db
+    .from(COMMENTS_TABLE)
+    .select("*")
+    .eq("target_type", kind)
+    .eq("target_id", targetId)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    commentEls[kind].list.innerHTML = `<div class="rating-comments-empty">Не удалось загрузить комментарии</div>`;
+    return;
+  }
+
+  renderComments(kind, data || []);
+}
+
+async function submitComment(kind) {
+  const targetId = currentRatingTarget[kind];
+  if (!targetId) return;
+
+  if (!currentIdentity) {
+    ensureIdentity();
+    return;
+  }
+
+  const els = commentEls[kind];
+  const text = els.input.value.trim();
+  if (!text) {
+    showToast("Напиши что-нибудь для комментария");
+    return;
+  }
+
+  const record = kind === "photo" ? currentPhotoRecord : currentVideoRecord;
+  if (!record) return;
+
+  els.submit.disabled = true;
+  els.submit.textContent = "Отправляю...";
+
+  const { error } = await db.from(COMMENTS_TABLE).insert({
+    target_type: kind,
+    target_id: targetId,
+    owner_code: record.owner_code || null,
+    author_code: currentIdentity.code,
+    author_name: currentIdentity.name,
+    text,
+    reply_to_id: commentReplyTarget[kind] ? commentReplyTarget[kind].id : null,
+  });
+
+  if (error) {
+    els.submit.disabled = false;
+    els.submit.textContent = "Отправить";
+    showToast("Не удалось отправить комментарий: " + error.message);
+    return;
+  }
+
+  // Если отмечена галочка "подарить гиперзадку" и человек ещё не дарил
+  // её этой карточке раньше — дарим вместе с комментарием (оценка не нужна).
+  const gEls = gigerEls[kind];
+  if (gEls.checkbox.checked && !alreadyGifted[kind]) {
+    await sendGiger(kind, record, text);
+  } else {
+    showToast("Комментарий отправлен 💬");
+  }
+
+  logActivity("comment", kind, record, text);
+
+  els.input.value = "";
+  setReplyTarget(kind, null);
+  els.submit.disabled = false;
+  els.submit.textContent = "Отправить";
+
+  loadComments(kind, targetId);
+  loadGiftState(kind, record);
+}
+
+commentEls.photo.submit.addEventListener("click", () => submitComment("photo"));
+commentEls.video.submit.addEventListener("click", () => submitComment("video"));
+commentEls.photo.replyCancel.addEventListener("click", () => setReplyTarget("photo", null));
+commentEls.video.replyCancel.addEventListener("click", () => setReplyTarget("video", null));
 
 // Если человек отметил "подарить гиперзадку", а потом передумал и снял
 // галочку (ещё до нажатия "Оценить") — проигрываем звук отмены.
@@ -2127,6 +2313,8 @@ async function openProfile(ownerCode) {
   profileBio.style.display = profile && profile.bio ? "block" : "none";
   profileAvatar.src = profile && profile.avatar_path ? publicUrlFor(profile.avatar_path) : "assets/mtn.png";
   profileBanner.src = profile && profile.banner_path ? publicUrlFor(profile.banner_path) : "";
+  if (profileOnlineDot) profileOnlineDot.setAttribute("data-online-for", ownerCode);
+  applyOnlinePresence();
 
   const isMe = currentIdentity && currentIdentity.code === ownerCode;
   profileEditBtn.classList.toggle("hidden", !isMe);
@@ -2172,7 +2360,11 @@ function renderProfileGallery(kind) {
     card.className = "card";
     if (kind === "photo") {
       const src = publicUrlFor(record.storage_path);
-      card.innerHTML = `<img src="${src}" alt="${record.name}" loading="lazy"><div class="name">${record.name}</div>`;
+      card.innerHTML = `
+        <img src="${src}" alt="${record.name}" loading="lazy">
+        ${record.followers_only ? `<div class="followers-only-badge" title="Только для подписчиков">🔒</div>` : ""}
+        <div class="name">${record.name}</div>
+      `;
       card.addEventListener("click", () => {
         const galleryIdx = currentPhotoList.indexOf(record);
         openLightbox(record, src, galleryIdx === -1 ? undefined : galleryIdx);
@@ -2180,6 +2372,7 @@ function renderProfileGallery(kind) {
     } else {
       card.innerHTML = `
         <div class="video-thumb"><img src="assets/video-cover.png" alt="${record.name}" loading="lazy"></div>
+        ${record.followers_only ? `<div class="followers-only-badge" title="Только для подписчиков">🔒</div>` : ""}
         <div class="video-badge">${SOURCE_LABELS[record.source] || "Видео"}</div>
         <div class="name">${record.name}</div>
       `;
@@ -2256,8 +2449,15 @@ profileFollowBtn.addEventListener("click", async () => {
     showToast("Подписка оформлена 🐿️");
   }
 
+  // Подписка меняет, какие "только для подписчиков" посты видны —
+  // сбрасываем кэш и тихо перезагружаем данные в фоне.
+  mySubscriptions = null;
+  await loadMySubscriptions();
+  await Promise.all([loadPhotos(), loadVideos()]);
+
   await refreshFollowButton(viewingProfileCode);
   await refreshProfileStats(viewingProfileCode);
+  renderProfileGallery(profileTabPhoto.classList.contains("active") ? "photo" : "video");
 });
 
 /* ---------- Редактирование профиля (имя/описание) ---------- */
@@ -2360,6 +2560,273 @@ async function boot() {
   else await loadPhotos();
 
   if (shared) openSharedFromHash();
+
+  initRealtime();
 }
 
 boot();
+
+/* ==================================================================
+   REALTIME (Supabase Realtime) — живые уведомления без перезагрузки:
+   - бейдж колокольчика обновляется сам, как только кто-то оставил
+     комментарий/просмотр/подарил гиперзадку;
+   - если центр активности открыт — новое событие само добавляется в список;
+   - новые фото/видео и новые комментарии под открытой карточкой
+     подтягиваются сами, без обновления страницы.
+   ================================================================== */
+let activityChannel = null;
+let postsChannel = null;
+let ratingsChannel = null;
+
+// Небольшая "тряска" колокольчика, чтобы было заметно, что пришло новое событие.
+function bumpActivityBell() {
+  if (!activityBellBtn) return;
+  activityBellBtn.classList.remove("bell-bump");
+  void activityBellBtn.offsetWidth; // форсируем reflow, чтобы анимацию можно было перезапустить
+  activityBellBtn.classList.add("bell-bump");
+}
+
+// Подписка на события активности (просмотры/комментарии/подарки/новые посты),
+// адресованные текущему пользователю. Как только приходит новая запись —
+// сразу обновляем бейдж и (если панель открыта) список, без перезагрузки.
+function subscribeActivityRealtime() {
+  if (!db || !currentIdentity) return;
+
+  if (activityChannel) {
+    db.removeChannel(activityChannel);
+    activityChannel = null;
+  }
+
+  activityChannel = db
+    .channel(`activity-${currentIdentity.code}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: ACTIVITY_TABLE,
+        filter: `owner_code=eq.${currentIdentity.code}`,
+      },
+      (payload) => {
+        const item = payload.new;
+        // Свои собственные действия (если owner_code == actor_code) не бампаем.
+        if (item.actor_code === currentIdentity.code) return;
+        refreshActivityBadge();
+        bumpActivityBell();
+        if (activityPanel && !activityPanel.classList.contains("hidden")) {
+          loadActivityFeed();
+        }
+      }
+    )
+    .subscribe();
+}
+
+// Подписка на новые фото/видео — как только кто-то опубликовал пост,
+// открытая сейчас лента сама подтягивает свежие данные без перезагрузки.
+function subscribePostsRealtime() {
+  if (!db) return;
+
+  if (postsChannel) {
+    db.removeChannel(postsChannel);
+    postsChannel = null;
+  }
+
+  postsChannel = db
+    .channel("posts-live")
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: PHOTO_TABLE },
+      () => {
+        if (currentTab === "photo") loadPhotos();
+      }
+    )
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: VIDEO_TABLE },
+      () => {
+        if (currentTab === "video") loadVideos();
+      }
+    )
+    .subscribe();
+}
+
+// Подписка на новые оценки/комментарии — если сейчас открыта карточка,
+// под которой кто-то только что оставил комментарий, он появится сам.
+function subscribeRatingsRealtime() {
+  if (!db) return;
+
+  if (ratingsChannel) {
+    db.removeChannel(ratingsChannel);
+    ratingsChannel = null;
+  }
+
+  ratingsChannel = db
+    .channel("ratings-live")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: RATING_TABLE },
+      (payload) => {
+        const row = payload.new || payload.old;
+        if (!row) return;
+        const kind = row.target_type;
+        if ((kind === "photo" || kind === "video") && currentRatingTarget[kind] === row.target_id) {
+          loadRatings(kind, row.target_id);
+        }
+        // Общий рейтинг (звёздочки на карточках) тоже пересчитываем в фоне.
+        loadAllRatings();
+      }
+    )
+    .subscribe();
+}
+
+let commentsChannel = null;
+
+// Подписка на новые/изменённые комментарии — если сейчас открыта карточка,
+// под которой кто-то только что оставил или ответил на комментарий, он
+// появится сам, без перезагрузки.
+function subscribeCommentsRealtime() {
+  if (!db) return;
+
+  if (commentsChannel) {
+    db.removeChannel(commentsChannel);
+    commentsChannel = null;
+  }
+
+  commentsChannel = db
+    .channel("comments-live")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: COMMENTS_TABLE },
+      (payload) => {
+        const row = payload.new || payload.old;
+        if (!row) return;
+        const kind = row.target_type;
+        if ((kind === "photo" || kind === "video") && currentRatingTarget[kind] === row.target_id) {
+          loadComments(kind, row.target_id);
+        }
+      }
+    )
+    .subscribe();
+}
+
+/* ==================================================================
+   ОНЛАЙН-СТАТУС (Supabase Realtime Presence)
+   Зелёная точка у аватара/имени, если человек прямо сейчас на сайте.
+   ================================================================== */
+let sitePresenceChannel = null;
+let onlineCodes = new Set();
+
+// Проходит по всем местам на странице, где может быть индикатор
+// "сейчас на сайте" (аватар в профиле, имя автора на карточке/в
+// лайтбоксе, автор комментария) и включает/выключает точку.
+function applyOnlinePresence() {
+  document.querySelectorAll("[data-online-for]").forEach((el) => {
+    const code = el.getAttribute("data-online-for");
+    el.classList.toggle("is-online", !!code && onlineCodes.has(code));
+  });
+}
+
+function subscribeSitePresence() {
+  if (!db) return;
+
+  if (sitePresenceChannel) {
+    db.removeChannel(sitePresenceChannel);
+    sitePresenceChannel = null;
+  }
+
+  // Гостям (без имени) свой онлайн-статус не показываем — присоединяемся
+  // к общему каналу присутствия только под своим кодом.
+  const myKey = currentIdentity ? currentIdentity.code : `guest-${Math.random().toString(36).slice(2, 10)}`;
+
+  sitePresenceChannel = db.channel("site-presence", {
+    config: { presence: { key: myKey } },
+  });
+
+  sitePresenceChannel
+    .on("presence", { event: "sync" }, () => {
+      const state = sitePresenceChannel.presenceState();
+      onlineCodes = new Set(
+        Object.values(state)
+          .flat()
+          .map((meta) => meta.code)
+          .filter(Boolean)
+      );
+      applyOnlinePresence();
+    })
+    .subscribe(async (status) => {
+      if (status === "SUBSCRIBED" && currentIdentity) {
+        await sitePresenceChannel.track({ code: currentIdentity.code, name: currentIdentity.name });
+      }
+    });
+}
+
+/* ==================================================================
+   ЖИВОЙ СЧЁТЧИК "СЕЙЧАС СМОТРЯТ" ДЛЯ ОТКРЫТОЙ КАРТОЧКИ В ЛАЙТБОКСЕ
+   ================================================================== */
+let viewingChannel = null;
+
+function pluralPeople(n) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 14) return "человек";
+  if (mod10 === 1) return "человек";
+  return "человека";
+}
+
+function updateLiveViewersUI(kind, count) {
+  const el = kind === "photo" ? photoLiveViewers : videoLiveViewers;
+  if (!el) return;
+  if (!count || count <= 1) {
+    el.classList.add("hidden");
+    el.innerHTML = "";
+    return;
+  }
+  el.classList.remove("hidden");
+  el.innerHTML = `<span class="live-dot"></span>${count} ${pluralPeople(count)} смотрят сейчас`;
+}
+
+// Подключаемся к отдельному presence-каналу для конкретной карточки —
+// как только кто-то ещё открывает тот же лайтбокс, счётчик у всех
+// обновляется сам, без перезагрузки.
+function joinViewingPresence(kind, targetId) {
+  if (!db) return;
+  leaveViewingPresence();
+
+  const myKey = currentIdentity ? currentIdentity.code : `guest-${Math.random().toString(36).slice(2, 10)}`;
+  viewingChannel = db.channel(`viewing-${kind}-${targetId}`, {
+    config: { presence: { key: myKey } },
+  });
+
+  viewingChannel
+    .on("presence", { event: "sync" }, () => {
+      const state = viewingChannel.presenceState();
+      const count = Object.values(state).reduce((sum, metas) => sum + metas.length, 0);
+      updateLiveViewersUI(kind, count);
+    })
+    .subscribe(async (status) => {
+      if (status === "SUBSCRIBED") {
+        await viewingChannel.track({
+          code: currentIdentity ? currentIdentity.code : null,
+          name: currentIdentity ? currentIdentity.name : "Гость",
+        });
+      }
+    });
+}
+
+function leaveViewingPresence() {
+  if (viewingChannel) {
+    db.removeChannel(viewingChannel);
+    viewingChannel = null;
+  }
+  updateLiveViewersUI("photo", 0);
+  updateLiveViewersUI("video", 0);
+}
+
+function initRealtime() {
+  if (!db || !window.supabase) return;
+  subscribePostsRealtime();
+  subscribeRatingsRealtime();
+  subscribeCommentsRealtime();
+  subscribeSitePresence();
+  if (currentIdentity) subscribeActivityRealtime();
+}

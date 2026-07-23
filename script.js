@@ -15,6 +15,15 @@ const ACTIVITY_TABLE = "burunduk_activity";
 const COMMENTS_TABLE = "burunduk_comments";
 const PROFILES_TABLE = "burunduk_profiles";
 const FOLLOWS_TABLE = "burunduk_follows";
+const FRAMES_TABLE = "burunduk_frames";
+
+const FRAME_DEFS = [
+  { id: "wombatramka", name: "Вомбатрамка", asset: "assets/wombatramka.png", type: "buy", price: 5 },
+  { id: "burundukramka", name: "Бурундукрамка", asset: "assets/burundukramka.png", type: "buy", price: 10 },
+  { id: "belkoslavramka", name: "Белкославрамка", asset: "assets/belkoslavramka.png", type: "buy", price: 15 },
+  { id: "patriotramka", name: "Патриотрамка", asset: "assets/patriotramka.png", type: "posts", postsRequired: 10 },
+  { id: "capuchinramka", name: "Капуцинрамка", asset: "assets/capuchinramka.png", type: "posts", postsRequired: 25 },
+];
 
 /* ---------- Ранги оценки (вместо звёзд) ---------- */
 const RANK_LEVELS = [
@@ -99,6 +108,11 @@ const profileBackBtn = document.getElementById("profileBackBtn");
 const profileBanner = document.getElementById("profileBanner");
 const profileEditBannerBtn = document.getElementById("profileEditBannerBtn");
 const profileAvatar = document.getElementById("profileAvatar");
+const profileAvatarFrame = document.getElementById("profileAvatarFrame");
+const profileFramesBtn = document.getElementById("profileFramesBtn");
+const framesModal = document.getElementById("framesModal");
+const framesShopList = document.getElementById("framesShopList");
+const framesModalClose = document.getElementById("framesModalClose");
 const profileOnlineDot = document.getElementById("profileOnlineDot");
 const profileEditAvatarBtn = document.getElementById("profileEditAvatarBtn");
 const profileName = document.getElementById("profileName");
@@ -2383,6 +2397,17 @@ async function openProfile(ownerCode) {
   profileBio.style.display = profile && profile.bio ? "block" : "none";
   profileAvatar.src = profile && profile.avatar_path ? publicUrlFor(profile.avatar_path) : "assets/mtn.png";
   profileBanner.src = profile && profile.banner_path ? publicUrlFor(profile.banner_path) : "";
+  if (profile && profile.equipped_frame) {
+    const frameDef = FRAME_DEFS.find((f) => f.id === profile.equipped_frame);
+    if (frameDef) {
+      profileAvatarFrame.src = frameDef.asset;
+      profileAvatarFrame.classList.remove("hidden");
+    } else {
+      profileAvatarFrame.classList.add("hidden");
+    }
+  } else {
+    profileAvatarFrame.classList.add("hidden");
+  }
   if (profileOnlineDot) profileOnlineDot.setAttribute("data-online-for", ownerCode);
   applyOnlinePresence();
 
@@ -2390,6 +2415,7 @@ async function openProfile(ownerCode) {
   profileEditBtn.classList.toggle("hidden", !isMe);
   profileEditAvatarBtn.classList.toggle("hidden", !isMe);
   profileEditBannerBtn.classList.toggle("hidden", !isMe);
+  profileFramesBtn.classList.toggle("hidden", !isMe);
   profileFollowBtn.classList.toggle("hidden", !currentIdentity || isMe);
 
   await refreshFollowButton(ownerCode);
@@ -2489,6 +2515,130 @@ async function refreshProfileStats(ownerCode) {
     allPhotoRecords.filter((r) => r.owner_code === ownerCode).length +
     allVideoRecords.filter((r) => r.owner_code === ownerCode).length;
   profilePostsCount.textContent = postsCount;
+}
+
+async function getGigerBalance(ownerCode) {
+  const { data } = await db.from(GIGER_TABLE).select("count").eq("owner_code", ownerCode).maybeSingle();
+  return (data && data.count) || 0;
+}
+
+async function getOwnedFrames(ownerCode) {
+  const { data } = await db.from(FRAMES_TABLE).select("frame_id").eq("owner_code", ownerCode);
+  return (data || []).map((r) => r.frame_id);
+}
+
+async function openFramesModal() {
+  if (!currentIdentity || !viewingProfileCode) return;
+  framesModal.classList.add("active");
+  framesShopList.innerHTML = "Загружаю рамки...";
+
+  const [balance, ownedIds, profile] = await Promise.all([
+    getGigerBalance(currentIdentity.code),
+    getOwnedFrames(currentIdentity.code),
+    fetchProfile(currentIdentity.code),
+  ]);
+
+  const postsCount =
+    allPhotoRecords.filter((r) => r.owner_code === currentIdentity.code).length +
+    allVideoRecords.filter((r) => r.owner_code === currentIdentity.code).length;
+
+  const equippedFrame = profile && profile.equipped_frame;
+  const avatarUrl = profile && profile.avatar_path ? publicUrlFor(profile.avatar_path) : "assets/mtn.png";
+
+  framesShopList.innerHTML = "";
+  FRAME_DEFS.forEach((frame) => {
+    const owned = ownedIds.includes(frame.id);
+    const isEquipped = equippedFrame === frame.id;
+
+    const card = document.createElement("div");
+    card.className = "frame-card" + (isEquipped ? " equipped" : "");
+
+    const preview = document.createElement("div");
+    preview.className = "frame-card-preview";
+    preview.innerHTML = `<img class="frame-base" src="${avatarUrl}" alt=""><img class="frame-overlay" src="${frame.asset}" alt="">`;
+    card.appendChild(preview);
+
+    const nameEl = document.createElement("div");
+    nameEl.className = "frame-card-name";
+    nameEl.textContent = frame.name;
+    card.appendChild(nameEl);
+
+    if (frame.type === "buy") {
+      const priceEl = document.createElement("div");
+      priceEl.className = "frame-card-price";
+      priceEl.innerHTML = `<img src="assets/giperzadka.png" style="width:14px;height:14px;object-fit:contain;"> ${frame.price}`;
+      card.appendChild(priceEl);
+    } else {
+      const statusEl = document.createElement("div");
+      statusEl.className = "frame-card-status";
+      statusEl.textContent = owned
+        ? "Разблокировано"
+        : `Нужно ${frame.postsRequired} публикаций (сейчас ${postsCount})`;
+      card.appendChild(statusEl);
+    }
+
+    const btn = document.createElement("button");
+    btn.className = "frame-card-btn";
+
+    if (owned) {
+      if (isEquipped) {
+        btn.textContent = "Снять";
+        btn.classList.add("equip-btn");
+        btn.addEventListener("click", async () => {
+          await db.from(PROFILES_TABLE).update({ equipped_frame: null }).eq("owner_code", currentIdentity.code);
+          profileCache[currentIdentity.code] = null;
+          await openFramesModal();
+          await openProfile(currentIdentity.code);
+        });
+      } else {
+        btn.textContent = "Надеть";
+        btn.classList.add("equip-btn");
+        btn.addEventListener("click", async () => {
+          await db
+            .from(PROFILES_TABLE)
+            .upsert({ owner_code: currentIdentity.code, equipped_frame: frame.id }, { onConflict: "owner_code" });
+          profileCache[currentIdentity.code] = null;
+          await openFramesModal();
+          await openProfile(currentIdentity.code);
+        });
+      }
+    } else if (frame.type === "buy") {
+      btn.textContent = "Купить";
+      btn.disabled = balance < frame.price;
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        const { data, error } = await db.rpc("frame_buy", {
+          p_owner_code: currentIdentity.code,
+          p_owner_name: currentIdentity.name,
+          p_frame_id: frame.id,
+          p_price: frame.price,
+        });
+        if (error || !data) {
+          showToast("Не хватает гиперзадок 😔");
+          await openFramesModal();
+          return;
+        }
+        showToast("Рамка куплена 🐿️");
+        await refreshMyGigerBalance();
+        await openFramesModal();
+      });
+    } else {
+      btn.textContent = "Заблокировано";
+      btn.disabled = true;
+    }
+
+    card.appendChild(btn);
+    framesShopList.appendChild(card);
+  });
+
+  if (framesModalClose && !framesModal.dataset.bound) {
+    framesModal.dataset.bound = "1";
+    framesModalClose.addEventListener("click", () => framesModal.classList.remove("active"));
+  }
+}
+
+if (profileFramesBtn) {
+  profileFramesBtn.addEventListener("click", () => openFramesModal());
 }
 
 async function refreshFollowButton(ownerCode) {

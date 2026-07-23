@@ -94,6 +94,7 @@
   <div class="profile-header">
     <div class="profile-avatar-wrap">
       <img id="profileAvatar" class="profile-avatar" src="assets/mtn.png" alt="">
+      <img id="profileAvatarFrame" class="profile-avatar-frame hidden" src="" alt="">
       <span id="profileOnlineDot" class="avatar-online-dot" data-online-for="" title="Сейчас на сайте"></span>
       <button id="profileEditAvatarBtn" class="profile-edit-avatar-btn hidden" title="Изменить аватар">✏️</button>
     </div>
@@ -101,6 +102,7 @@
       <div class="profile-name-row">
         <span id="profileName" class="profile-name">—</span>
         <button id="profileEditBtn" class="tool-btn hidden">✏️ Редактировать профиль</button>
+        <button id="profileFramesBtn" class="tool-btn hidden">🖼️ Рамки</button>
         <button id="profileFollowBtn" class="pick-btn small hidden">Подписаться</button>
       </div>
       <div id="profileBio" class="profile-bio"></div>
@@ -123,6 +125,16 @@
 </div>
 
 <!-- модалка редактирования профиля -->
+<div id="framesModal" class="modal">
+  <div class="modal-box">
+    <h3>🖼️ Рамки профиля</h3>
+    <div id="framesShopList" class="frames-shop-list"></div>
+    <div class="modal-actions">
+      <button id="framesModalClose" class="pick-btn small">Закрыть</button>
+    </div>
+  </div>
+</div>
+
 <div id="editProfileModal" class="modal">
   <div class="modal-box">
     <h3>Редактировать профиль</h3>

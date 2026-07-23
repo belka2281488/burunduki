@@ -1496,11 +1496,104 @@ main {
 .profile-avatar {
   width: 92px;
   height: 92px;
-  border-radius: 50%;
+  border-radius: 12px;
   object-fit: cover;
   border: 4px solid #fdf6ec;
   background: #fff;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.profile-avatar-frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 92px;
+  height: 92px;
+  object-fit: contain;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.frames-shop-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 14px;
+  margin: 14px 0;
+}
+
+.frame-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(160, 82, 45, 0.08);
+  border: 2px solid transparent;
+}
+
+.frame-card.equipped {
+  border-color: #a0522d;
+}
+
+.frame-card-preview {
+  position: relative;
+  width: 80px;
+  height: 80px;
+}
+
+.frame-card-preview img.frame-base {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 10px;
+}
+
+.frame-card-preview img.frame-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 80px;
+  height: 80px;
+  object-fit: contain;
+}
+
+.frame-card-name {
+  font-weight: 600;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+.frame-card-price {
+  font-size: 0.85rem;
+  color: #7a4a2b;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.frame-card-status {
+  font-size: 0.8rem;
+  color: #4a7a3a;
+}
+
+.frame-card-btn {
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: none;
+  background: #a0522d;
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.frame-card-btn:disabled {
+  background: #ccc;
+  cursor: default;
+}
+
+.frame-card-btn.equip-btn {
+  background: #4a7a3a;
 }
 
 .profile-edit-avatar-btn {
@@ -1606,6 +1699,10 @@ main {
     margin-top: -36px;
   }
   .profile-avatar {
+    width: 76px;
+    height: 76px;
+  }
+  .profile-avatar-frame {
     width: 76px;
     height: 76px;
   }

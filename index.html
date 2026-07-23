@@ -103,6 +103,7 @@
         <span id="profileName" class="profile-name">—</span>
         <button id="profileEditBtn" class="tool-btn hidden">✏️ Редактировать профиль</button>
         <button id="profileFramesBtn" class="tool-btn hidden">🖼️ Рамки</button>
+        <button id="profileNameColorBtn" class="tool-btn hidden">🎨 Цвет ника</button>
         <button id="profileFollowBtn" class="pick-btn small hidden">Подписаться</button>
       </div>
       <div id="profileBio" class="profile-bio"></div>
@@ -125,6 +126,42 @@
 </div>
 
 <!-- модалка редактирования профиля -->
+<div id="nameColorModal" class="modal">
+  <div class="modal-box">
+    <h3>🎨 Цвет ника</h3>
+
+    <div class="name-color-preview-wrap">
+      <span id="nameColorPreview" class="name-color-preview">Пример ника</span>
+    </div>
+
+    <div class="name-color-mode-tabs">
+      <button id="nameColorModeSolid" class="tab-btn active">Один цвет</button>
+      <button id="nameColorModeGradient" class="tab-btn">Градиент</button>
+    </div>
+
+    <div id="nameColorSolidPanel">
+      <div class="name-color-swatches" id="nameColorSwatches"></div>
+      <label class="modal-label">Свой цвет</label>
+      <input type="color" id="nameColorPicker" class="modal-input" value="#a0522d">
+    </div>
+
+    <div id="nameColorGradientPanel" class="hidden">
+      <div class="name-color-swatches" id="nameGradientSwatches"></div>
+      <label class="modal-label">Свой градиент</label>
+      <div class="name-gradient-custom-row">
+        <input type="color" id="nameGradientFrom" class="modal-input" value="#ff512f">
+        <input type="color" id="nameGradientTo" class="modal-input" value="#dd2476">
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button id="nameColorReset" class="pick-btn small">Сбросить</button>
+      <button id="nameColorApply" class="pick-btn small">Применить</button>
+      <button id="nameColorCancel" class="pick-btn small">Отмена</button>
+    </div>
+  </div>
+</div>
+
 <div id="framesModal" class="modal">
   <div class="modal-box">
     <h3>🖼️ Рамки профиля</h3>

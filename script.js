@@ -14,6 +14,19 @@ const VIEWS_TABLE = "burunduk_views";
 const ACTIVITY_TABLE = "burunduk_activity";
 const COMMENTS_TABLE = "burunduk_comments";
 const PROFILES_TABLE = "burunduk_profiles";
+const NAME_COLOR_PRESETS = [
+  "#a0522d", "#e74c3c", "#e67e22", "#f1c40f", "#2ecc71",
+  "#1abc9c", "#3498db", "#9b59b6", "#e84393", "#2c3e50",
+];
+
+const NAME_GRADIENT_PRESETS = [
+  "linear-gradient(90deg, #ff512f, #dd2476)",
+  "linear-gradient(90deg, #f7971e, #ffd200)",
+  "linear-gradient(90deg, #56ab2f, #a8e063)",
+  "linear-gradient(90deg, #00c6ff, #0072ff)",
+  "linear-gradient(90deg, #8e2de2, #4a00e0)",
+  "linear-gradient(90deg, #ee0979, #ff6a00)",
+];
 const FOLLOWS_TABLE = "burunduk_follows";
 const FRAMES_TABLE = "burunduk_frames";
 
@@ -113,6 +126,21 @@ const profileFramesBtn = document.getElementById("profileFramesBtn");
 const framesModal = document.getElementById("framesModal");
 const framesShopList = document.getElementById("framesShopList");
 const framesModalClose = document.getElementById("framesModalClose");
+const profileNameColorBtn = document.getElementById("profileNameColorBtn");
+const nameColorModal = document.getElementById("nameColorModal");
+const nameColorPreview = document.getElementById("nameColorPreview");
+const nameColorModeSolid = document.getElementById("nameColorModeSolid");
+const nameColorModeGradient = document.getElementById("nameColorModeGradient");
+const nameColorSolidPanel = document.getElementById("nameColorSolidPanel");
+const nameColorGradientPanel = document.getElementById("nameColorGradientPanel");
+const nameColorSwatches = document.getElementById("nameColorSwatches");
+const nameGradientSwatches = document.getElementById("nameGradientSwatches");
+const nameColorPicker = document.getElementById("nameColorPicker");
+const nameGradientFrom = document.getElementById("nameGradientFrom");
+const nameGradientTo = document.getElementById("nameGradientTo");
+const nameColorApply = document.getElementById("nameColorApply");
+const nameColorCancel = document.getElementById("nameColorCancel");
+const nameColorReset = document.getElementById("nameColorReset");
 const profileOnlineDot = document.getElementById("profileOnlineDot");
 const profileEditAvatarBtn = document.getElementById("profileEditAvatarBtn");
 const profileName = document.getElementById("profileName");
@@ -2377,6 +2405,23 @@ function displayNameFor(ownerCode, fallbackName) {
   return (p && p.display_name) || fallbackName || "Без имени";
 }
 
+function applyNameColor(el, nameColor) {
+  el.classList.remove("gradient-name-text");
+  el.style.color = "";
+  el.style.background = "";
+  if (!nameColor) return;
+  if (nameColor.includes("gradient")) {
+    el.style.background = nameColor;
+    el.style.webkitBackgroundClip = "text";
+    el.style.backgroundClip = "text";
+    el.style.webkitTextFillColor = "transparent";
+    el.style.color = "transparent";
+    el.classList.add("gradient-name-text");
+  } else {
+    el.style.color = nameColor;
+  }
+}
+
 async function openProfile(ownerCode) {
   if (!ownerCode) return;
   viewingProfileCode = ownerCode;
@@ -2393,6 +2438,7 @@ async function openProfile(ownerCode) {
     "Без имени";
 
   profileName.textContent = (profile && profile.display_name) || fallbackName;
+  applyNameColor(profileName, profile && profile.name_color);
   profileBio.textContent = (profile && profile.bio) || "";
   profileBio.style.display = profile && profile.bio ? "block" : "none";
   profileAvatar.src = profile && profile.avatar_path ? publicUrlFor(profile.avatar_path) : "assets/mtn.png";
@@ -2416,6 +2462,7 @@ async function openProfile(ownerCode) {
   profileEditAvatarBtn.classList.toggle("hidden", !isMe);
   profileEditBannerBtn.classList.toggle("hidden", !isMe);
   profileFramesBtn.classList.toggle("hidden", !isMe);
+  profileNameColorBtn.classList.toggle("hidden", !isMe);
   profileFollowBtn.classList.toggle("hidden", !currentIdentity || isMe);
 
   await refreshFollowButton(ownerCode);
@@ -2651,6 +2698,122 @@ async function openFramesModal() {
 if (profileFramesBtn) {
   profileFramesBtn.addEventListener("click", () => openFramesModal());
 }
+
+/* ---------- Цвет / градиент ника ---------- */
+let nameColorSelected = null;
+let nameColorMode = "solid";
+
+function renderNameColorSwatches() {
+  nameColorSwatches.innerHTML = "";
+  NAME_COLOR_PRESETS.forEach((color) => {
+    const sw = document.createElement("div");
+    sw.className = "name-color-swatch";
+    sw.style.background = color;
+    sw.addEventListener("click", () => {
+      nameColorSelected = color;
+      nameColorPicker.value = color;
+      updateNameColorPreview();
+      markSelectedSwatch(nameColorSwatches, sw);
+    });
+    nameColorSwatches.appendChild(sw);
+  });
+
+  nameGradientSwatches.innerHTML = "";
+  NAME_GRADIENT_PRESETS.forEach((grad) => {
+    const sw = document.createElement("div");
+    sw.className = "name-color-swatch";
+    sw.style.background = grad;
+    sw.addEventListener("click", () => {
+      nameColorSelected = grad;
+      updateNameColorPreview();
+      markSelectedSwatch(nameGradientSwatches, sw);
+    });
+    nameGradientSwatches.appendChild(sw);
+  });
+}
+
+function markSelectedSwatch(container, activeEl) {
+  [...container.children].forEach((c) => c.classList.remove("selected"));
+  activeEl.classList.add("selected");
+}
+
+function updateNameColorPreview() {
+  applyNameColor(nameColorPreview, nameColorSelected);
+}
+
+renderNameColorSwatches();
+
+nameColorModeSolid.addEventListener("click", () => {
+  nameColorMode = "solid";
+  nameColorModeSolid.classList.add("active");
+  nameColorModeGradient.classList.remove("active");
+  nameColorSolidPanel.classList.remove("hidden");
+  nameColorGradientPanel.classList.add("hidden");
+});
+
+nameColorModeGradient.addEventListener("click", () => {
+  nameColorMode = "gradient";
+  nameColorModeGradient.classList.add("active");
+  nameColorModeSolid.classList.remove("active");
+  nameColorGradientPanel.classList.remove("hidden");
+  nameColorSolidPanel.classList.add("hidden");
+});
+
+nameColorPicker.addEventListener("input", () => {
+  nameColorSelected = nameColorPicker.value;
+  updateNameColorPreview();
+  [...nameColorSwatches.children].forEach((c) => c.classList.remove("selected"));
+});
+
+function updateCustomGradient() {
+  nameColorSelected = `linear-gradient(90deg, ${nameGradientFrom.value}, ${nameGradientTo.value})`;
+  updateNameColorPreview();
+  [...nameGradientSwatches.children].forEach((c) => c.classList.remove("selected"));
+}
+
+nameGradientFrom.addEventListener("input", updateCustomGradient);
+nameGradientTo.addEventListener("input", updateCustomGradient);
+
+async function openNameColorModal() {
+  if (!currentIdentity) return;
+  const profile = await fetchProfile(currentIdentity.code);
+  nameColorSelected = (profile && profile.name_color) || null;
+  nameColorMode = nameColorSelected && nameColorSelected.includes("gradient") ? "gradient" : "solid";
+
+  nameColorModeSolid.classList.toggle("active", nameColorMode === "solid");
+  nameColorModeGradient.classList.toggle("active", nameColorMode === "gradient");
+  nameColorSolidPanel.classList.toggle("hidden", nameColorMode !== "solid");
+  nameColorGradientPanel.classList.toggle("hidden", nameColorMode !== "gradient");
+
+  updateNameColorPreview();
+  nameColorModal.classList.add("active");
+}
+
+if (profileNameColorBtn) {
+  profileNameColorBtn.addEventListener("click", () => openNameColorModal());
+}
+
+nameColorCancel.addEventListener("click", () => nameColorModal.classList.remove("active"));
+
+nameColorReset.addEventListener("click", async () => {
+  if (!currentIdentity) return;
+  await db.from(PROFILES_TABLE).upsert({ owner_code: currentIdentity.code, name_color: null }, { onConflict: "owner_code" });
+  profileCache[currentIdentity.code] = null;
+  nameColorModal.classList.remove("active");
+  showToast("Цвет ника сброшен 🐿️");
+  await openProfile(currentIdentity.code);
+});
+
+nameColorApply.addEventListener("click", async () => {
+  if (!currentIdentity) return;
+  await db
+    .from(PROFILES_TABLE)
+    .upsert({ owner_code: currentIdentity.code, name_color: nameColorSelected }, { onConflict: "owner_code" });
+  profileCache[currentIdentity.code] = null;
+  nameColorModal.classList.remove("active");
+  showToast("Цвет ника сохранён 🐿️");
+  await openProfile(currentIdentity.code);
+});
 
 async function refreshFollowButton(ownerCode) {
   if (!currentIdentity || currentIdentity.code === ownerCode) return;

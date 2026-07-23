@@ -1596,6 +1596,59 @@ main {
   background: #4a7a3a;
 }
 
+.name-color-preview-wrap {
+  text-align: center;
+  margin: 10px 0 16px;
+}
+
+.name-color-preview {
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.name-color-mode-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.name-color-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.name-color-swatch {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.name-color-swatch.selected {
+  border-color: #333;
+}
+
+.name-gradient-custom-row {
+  display: flex;
+  gap: 10px;
+}
+
+.name-gradient-custom-row input {
+  flex: 1;
+}
+
+.gradient-name-text {
+  display: inline-block;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
 .profile-edit-avatar-btn {
   position: absolute;
   right: -2px;

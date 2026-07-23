@@ -12,6 +12,11 @@ on burunduk_frames for select
 to public
 using (true);
 
+create policy "Allow public insert burunduk_frames"
+on burunduk_frames for insert
+to public
+with check (true);
+
 alter table burunduk_profiles add column if not exists equipped_frame text;
 
 create or replace function frame_buy(p_owner_code text, p_owner_name text, p_frame_id text, p_price int)

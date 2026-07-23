@@ -2532,15 +2532,26 @@ async function openFramesModal() {
   framesModal.classList.add("active");
   framesShopList.innerHTML = "Загружаю рамки...";
 
-  const [balance, ownedIds, profile] = await Promise.all([
-    getGigerBalance(currentIdentity.code),
-    getOwnedFrames(currentIdentity.code),
-    fetchProfile(currentIdentity.code),
-  ]);
-
   const postsCount =
     allPhotoRecords.filter((r) => r.owner_code === currentIdentity.code).length +
     allVideoRecords.filter((r) => r.owner_code === currentIdentity.code).length;
+
+  let ownedIds = await getOwnedFrames(currentIdentity.code);
+
+  const toUnlock = FRAME_DEFS.filter(
+    (f) => f.type === "posts" && postsCount >= f.postsRequired && !ownedIds.includes(f.id)
+  );
+  if (toUnlock.length) {
+    await db.from(FRAMES_TABLE).insert(
+      toUnlock.map((f) => ({ owner_code: currentIdentity.code, frame_id: f.id }))
+    );
+    ownedIds = await getOwnedFrames(currentIdentity.code);
+  }
+
+  const [balance, profile] = await Promise.all([
+    getGigerBalance(currentIdentity.code),
+    fetchProfile(currentIdentity.code),
+  ]);
 
   const equippedFrame = profile && profile.equipped_frame;
   const avatarUrl = profile && profile.avatar_path ? publicUrlFor(profile.avatar_path) : "assets/mtn.png";

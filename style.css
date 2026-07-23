@@ -784,6 +784,98 @@ main {
   z-index: 2;
 }
 
+.kurymdyk-wrap {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(160, 82, 45, 0.25);
+  border-radius: 10px;
+}
+
+.kurymdyk-wrap input[type="range"] {
+  width: 100%;
+  accent-color: #a0522d;
+  margin-top: 6px;
+}
+
+.kurymdyk-price-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-weight: 700;
+  color: #a0522d;
+}
+
+.kurymdyk-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #ffd76b;
+  padding: 4px 10px;
+  border-radius: 14px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 2;
+}
+
+.card.kurymdyk-locked img {
+  filter: grayscale(0.2) brightness(0.9);
+}
+
+.kurymdyk-paywall {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  background: rgba(20, 12, 5, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.kurymdyk-paywall.hidden {
+  display: none;
+}
+
+.kurymdyk-paywall-box {
+  background: #fffaf2;
+  border-radius: 16px;
+  padding: 26px;
+  max-width: 360px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.kurymdyk-paywall-img {
+  width: 100px;
+  height: 100px;
+  object-fit: cover;
+  border-radius: 12px;
+  margin-bottom: 14px;
+}
+
+.kurymdyk-paywall-text {
+  color: #6b5236;
+  font-size: 0.92rem;
+  margin-bottom: 12px;
+}
+
+.kurymdyk-paywall-price {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-weight: 800;
+  color: #a0522d;
+  margin-bottom: 14px;
+  font-size: 1.05rem;
+}
+
 .pinned-badge {
   position: absolute;
   top: 8px;
@@ -1437,6 +1529,40 @@ main {
   display: inline-block;
   margin: 16px 0;
   font-size: 0.9rem;
+}
+
+.profile-tools-fixed {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 5;
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.profile-tools-fixed .tool-btn {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  background: #a0522d;
+  color: #fff;
+  border-color: #a0522d;
+}
+
+.profile-tools-fixed .tool-btn:hover {
+  background: #8a4324;
+}
+
+@media (max-width: 700px) {
+  .profile-tools-fixed {
+    top: 8px;
+    left: 8px;
+    flex-wrap: wrap;
+  }
+  .profile-tools-fixed .tool-btn {
+    font-size: 0.78rem;
+    padding: 6px 10px;
+  }
 }
 
 .profile-banner-wrap {

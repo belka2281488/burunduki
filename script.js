@@ -28,6 +28,9 @@ const NAME_GRADIENT_PRESETS = [
   "linear-gradient(90deg, #ee0979, #ff6a00)",
 ];
 const FOLLOWS_TABLE = "burunduk_follows";
+const KURYMDYK_IMAGE = "assets/kurymdyk.png";
+const KURYMDYK_UNLOCKS_TABLE = "burunduk_kurymdyk_unlocks";
+
 const FRAMES_TABLE = "burunduk_frames";
 
 const FRAME_DEFS = [
@@ -95,12 +98,19 @@ const uploadCategory = document.getElementById("uploadCategory");
 const newCategoryWrap = document.getElementById("newCategoryWrap");
 const newCategoryName = document.getElementById("newCategoryName");
 const uploadFollowersOnly = document.getElementById("uploadFollowersOnly");
+const uploadKurymdykEnabled = document.getElementById("uploadKurymdykEnabled");
+const uploadKurymdykWrap = document.getElementById("uploadKurymdykWrap");
+const uploadKurymdykPrice = document.getElementById("uploadKurymdykPrice");
+const uploadKurymdykPriceLabel = document.getElementById("uploadKurymdykPriceLabel");
 const categoryTabsEl = document.getElementById("categoryTabs");
 const NEW_CATEGORY_VALUE = "__new__";
 
 const lightbox = document.getElementById("lightbox");
 const lightboxImg = document.getElementById("lightboxImg");
 const lightboxName = document.getElementById("lightboxName");
+const photoKurymdykPaywall = document.getElementById("photoKurymdykPaywall");
+const photoKurymdykPriceLabel = document.getElementById("photoKurymdykPriceLabel");
+const photoKurymdykUnlockBtn = document.getElementById("photoKurymdykUnlockBtn");
 const lightboxAuthor = document.getElementById("lightboxAuthor");
 const lightboxDescription = document.getElementById("lightboxDescription");
 const lightboxDate = document.getElementById("lightboxDate");
@@ -191,10 +201,17 @@ const videoCategory = document.getElementById("videoCategory");
 const newVideoCategoryWrap = document.getElementById("newVideoCategoryWrap");
 const newVideoCategoryName = document.getElementById("newVideoCategoryName");
 const videoFollowersOnly = document.getElementById("videoFollowersOnly");
+const videoKurymdykEnabled = document.getElementById("videoKurymdykEnabled");
+const videoKurymdykWrap = document.getElementById("videoKurymdykWrap");
+const videoKurymdykPrice = document.getElementById("videoKurymdykPrice");
+const videoKurymdykPriceLabel = document.getElementById("videoKurymdykPriceLabel");
 
 const videoLightbox = document.getElementById("videoLightbox");
 const videoLightboxClose = document.getElementById("videoLightboxClose");
 const videoLightboxName = document.getElementById("videoLightboxName");
+const videoKurymdykPaywall = document.getElementById("videoKurymdykPaywall");
+const videoKurymdykPriceLabel2 = document.getElementById("videoKurymdykPriceLabel2");
+const videoKurymdykUnlockBtn = document.getElementById("videoKurymdykUnlockBtn");
 const videoLightboxAuthor = document.getElementById("videoLightboxAuthor");
 const videoLightboxDescription = document.getElementById("videoLightboxDescription");
 const videoLightboxDate = document.getElementById("videoLightboxDate");
@@ -678,6 +695,27 @@ async function loadMySubscriptions() {
 
 // true, если текущий пользователь может видеть запись: либо она открытая,
 // либо это его собственная публикация, либо он подписан на автора.
+if (uploadKurymdykEnabled) {
+  uploadKurymdykEnabled.addEventListener("change", () => {
+    uploadKurymdykWrap.classList.toggle("hidden", !uploadKurymdykEnabled.checked);
+  });
+}
+if (uploadKurymdykPrice) {
+  uploadKurymdykPrice.addEventListener("input", () => {
+    uploadKurymdykPriceLabel.textContent = uploadKurymdykPrice.value;
+  });
+}
+if (videoKurymdykEnabled) {
+  videoKurymdykEnabled.addEventListener("change", () => {
+    videoKurymdykWrap.classList.toggle("hidden", !videoKurymdykEnabled.checked);
+  });
+}
+if (videoKurymdykPrice) {
+  videoKurymdykPrice.addEventListener("input", () => {
+    videoKurymdykPriceLabel.textContent = videoKurymdykPrice.value;
+  });
+}
+
 function canSeeRecord(record) {
   if (!record.followers_only) return true;
   if (currentIdentity && record.owner_code === currentIdentity.code) return true;
@@ -699,6 +737,7 @@ async function loadPhotos() {
   }
 
   if (!mySubscriptions) await loadMySubscriptions();
+  if (!unlockedKurymdykSet) await loadUnlockedKurymdyk();
   allPhotoRecords = (data || []).filter(canSeeRecord);
   fillAuthorFilter();
 
@@ -709,6 +748,56 @@ async function loadPhotos() {
   }
 
   applySearch();
+}
+
+let unlockedKurymdykSet = null; // Set из "photo:<id>" / "video:<id>", которые текущий юзер уже оплатил
+
+async function loadUnlockedKurymdyk() {
+  if (!currentIdentity || !db) {
+    unlockedKurymdykSet = new Set();
+    return unlockedKurymdykSet;
+  }
+  const { data, error } = await db
+    .from(KURYMDYK_UNLOCKS_TABLE)
+    .select("target_type, target_id")
+    .eq("viewer_code", currentIdentity.code);
+
+  unlockedKurymdykSet = new Set(error ? [] : (data || []).map((r) => `${r.target_type}:${r.target_id}`));
+  return unlockedKurymdykSet;
+}
+
+function isKurymdykLocked(kind, record) {
+  const price = record.kurymdyk_price || 0;
+  if (price <= 0) return false;
+  if (currentIdentity && record.owner_code === currentIdentity.code) return false;
+  if (!unlockedKurymdykSet) return true;
+  return !unlockedKurymdykSet.has(`${kind}:${record.id}`);
+}
+
+async function unlockKurymdyk(kind, record) {
+  if (!currentIdentity) {
+    showToast("Сначала укажи своё имя 🐿️");
+    return false;
+  }
+  const price = record.kurymdyk_price || 0;
+  const { data, error } = await db.rpc("kurymdyk_unlock", {
+    p_target_type: kind,
+    p_target_id: record.id,
+    p_viewer_code: currentIdentity.code,
+    p_viewer_name: currentIdentity.name,
+    p_owner_code: record.owner_code,
+    p_price: price,
+  });
+
+  if (error || !data) {
+    showToast("Не хватает гиперзадок 😔");
+    return false;
+  }
+
+  unlockedKurymdykSet.add(`${kind}:${record.id}`);
+  await refreshMyGigerBalance();
+  showToast("Курымдык разблокирован 🎭");
+  return true;
 }
 
 function publicUrlFor(storagePath) {
@@ -738,16 +827,19 @@ function renderPhotoGallery(records) {
   currentPhotoList = records;
   galleryPhoto.innerHTML = "";
   records.forEach((record, idx) => {
-    const src = publicUrlFor(record.storage_path);
+    const locked = isKurymdykLocked("photo", record);
+    const src = locked ? KURYMDYK_IMAGE : publicUrlFor(record.storage_path);
+    const displayName = locked ? "🎭 Курымдык" : record.name;
     const card = document.createElement("div");
-    card.className = "card";
+    card.className = "card" + (locked ? " kurymdyk-locked" : "");
     card.innerHTML = `
-      <img src="${src}" alt="${record.name}" loading="lazy">
+      <img src="${src}" alt="${displayName}" loading="lazy">
+      ${locked ? `<div class="kurymdyk-badge" title="Платный просмотр">🎭 ${record.kurymdyk_price}</div>` : ""}
       ${record.followers_only ? `<div class="followers-only-badge" title="Только для подписчиков">🔒</div>` : ""}
-      <div class="name">${record.name}</div>
-      ${record.owner_name ? `<div class="owner-tag owner-tag-link" data-owner="${record.owner_code}"><span class="online-dot" data-online-for="${record.owner_code}"></span>от ${record.owner_name}</div>` : ""}
+      <div class="name">${displayName}</div>
+      ${record.owner_name && !locked ? `<div class="owner-tag owner-tag-link" data-owner="${record.owner_code}"><span class="online-dot" data-online-for="${record.owner_code}"></span>от ${record.owner_name}</div>` : ""}
     `;
-    card.addEventListener("click", () => openLightbox(record, src, idx));
+    card.addEventListener("click", () => openLightbox(record, locked ? KURYMDYK_IMAGE : src, idx));
     const ownerTag = card.querySelector(".owner-tag-link");
     if (ownerTag) {
       ownerTag.addEventListener("click", (e) => {
@@ -772,6 +864,10 @@ uploadPhotoBtn.addEventListener("click", () => {
   if (newCategoryWrap) newCategoryWrap.classList.add("hidden");
   if (newCategoryName) newCategoryName.value = "";
   if (uploadFollowersOnly) uploadFollowersOnly.checked = false;
+  if (uploadKurymdykEnabled) uploadKurymdykEnabled.checked = false;
+  if (uploadKurymdykWrap) uploadKurymdykWrap.classList.add("hidden");
+  if (uploadKurymdykPrice) uploadKurymdykPrice.value = 1;
+  if (uploadKurymdykPriceLabel) uploadKurymdykPriceLabel.textContent = "1";
   fileInput.click();
 });
 
@@ -805,6 +901,7 @@ uploadConfirm.addEventListener("click", async () => {
         name: displayName,
         description: description || null,
         followers_only: uploadFollowersOnly.checked,
+        kurymdyk_price: uploadKurymdykEnabled && uploadKurymdykEnabled.checked ? Number(uploadKurymdykPrice.value) : 0,
       })
       .eq("id", editingPhotoRecord.id);
 
@@ -882,6 +979,7 @@ uploadConfirm.addEventListener("click", async () => {
       owner_code: currentIdentity ? currentIdentity.code : null,
       category_id: categoryId,
       followers_only: uploadFollowersOnly.checked,
+      kurymdyk_price: uploadKurymdykEnabled && uploadKurymdykEnabled.checked ? Number(uploadKurymdykPrice.value) : 0,
     })
     .select()
     .single();
@@ -916,6 +1014,11 @@ editBtn.addEventListener("click", () => {
   uploadName.value = currentPhotoRecord.name;
   uploadDescription.value = currentPhotoRecord.description || "";
   if (uploadFollowersOnly) uploadFollowersOnly.checked = !!currentPhotoRecord.followers_only;
+  const photoKurymdykPrice = currentPhotoRecord.kurymdyk_price || 0;
+  if (uploadKurymdykEnabled) uploadKurymdykEnabled.checked = photoKurymdykPrice > 0;
+  if (uploadKurymdykWrap) uploadKurymdykWrap.classList.toggle("hidden", photoKurymdykPrice <= 0);
+  if (uploadKurymdykPrice) uploadKurymdykPrice.value = photoKurymdykPrice > 0 ? photoKurymdykPrice : 1;
+  if (uploadKurymdykPriceLabel) uploadKurymdykPriceLabel.textContent = uploadKurymdykPrice.value;
   uploadModal.classList.add("active");
 });
 
@@ -966,13 +1069,21 @@ function openLightbox(record, src, index) {
   currentPhotoRecord = record;
   currentPhotoSrc = src;
   currentPhotoIndex = typeof index === "number" ? index : currentPhotoList.indexOf(record);
-  lightboxImg.src = src;
+
+  const locked = isKurymdykLocked("photo", record);
+  photoKurymdykPaywall.classList.toggle("hidden", !locked);
+  if (locked) photoKurymdykPriceLabel.textContent = record.kurymdyk_price;
+
+  const displayName = locked ? "🎭 Курымдык" : record.name;
+  const displaySrc = locked ? KURYMDYK_IMAGE : src;
+
+  lightboxImg.src = displaySrc;
   lightboxImg.style.transform = "";
-  lightboxName.textContent = record.name;
-  lightboxDescription.textContent = record.description || "";
-  lightboxDescription.style.display = record.description ? "block" : "none";
-  lightboxDate.textContent = formatPublishDate(record.created_at);
-  if (record.owner_name) {
+  lightboxName.textContent = displayName;
+  lightboxDescription.textContent = locked ? "" : (record.description || "");
+  lightboxDescription.style.display = !locked && record.description ? "block" : "none";
+  lightboxDate.textContent = locked ? "" : formatPublishDate(record.created_at);
+  if (record.owner_name && !locked) {
     lightboxAuthor.innerHTML = `<span class="online-dot" data-online-for="${record.owner_code || ""}"></span>от ${escapeHtml(record.owner_name)}`;
     lightboxAuthor.dataset.owner = record.owner_code || "";
     lightboxAuthor.style.display = record.owner_code ? "block" : "none";
@@ -980,7 +1091,7 @@ function openLightbox(record, src, index) {
     lightboxAuthor.textContent = "";
     lightboxAuthor.style.display = "none";
   }
-  magnifier.style.backgroundImage = `url('${src}')`;
+  magnifier.style.backgroundImage = `url('${displaySrc}')`;
   setMode("loupe");
 
   const owner = isOwner(record);
@@ -993,6 +1104,10 @@ function openLightbox(record, src, index) {
   updateLightboxNavButtons();
 
   lightbox.classList.add("active");
+  lightbox.classList.toggle("kurymdyk-active", locked);
+
+  if (locked) return;
+
   loadRatings("photo", record.id);
   loadComments("photo", record.id);
   setReplyTarget("photo", null);
@@ -1001,6 +1116,19 @@ function openLightbox(record, src, index) {
   showViewCount("photo", record.id, photoViewCounter);
   applyOnlinePresence();
   joinViewingPresence("photo", record.id);
+}
+
+if (photoKurymdykUnlockBtn) {
+  photoKurymdykUnlockBtn.addEventListener("click", async () => {
+    if (!currentPhotoRecord) return;
+    photoKurymdykUnlockBtn.disabled = true;
+    const ok = await unlockKurymdyk("photo", currentPhotoRecord);
+    photoKurymdykUnlockBtn.disabled = false;
+    if (ok) {
+      const src = publicUrlFor(currentPhotoRecord.storage_path);
+      openLightbox(currentPhotoRecord, src, currentPhotoIndex);
+    }
+  });
 }
 
 function updateLightboxNavButtons() {
@@ -1015,7 +1143,8 @@ function showPhotoAtIndex(index) {
   const len = currentPhotoList.length;
   const newIndex = ((index % len) + len) % len;
   const record = currentPhotoList[newIndex];
-  const src = publicUrlFor(record.storage_path);
+  const locked = isKurymdykLocked("photo", record);
+  const src = locked ? KURYMDYK_IMAGE : publicUrlFor(record.storage_path);
   openLightbox(record, src, newIndex);
 }
 
@@ -1213,6 +1342,7 @@ async function loadVideos() {
   }
 
   if (!mySubscriptions) await loadMySubscriptions();
+  if (!unlockedKurymdykSet) await loadUnlockedKurymdyk();
   allVideoRecords = (data || []).filter(canSeeRecord);
   fillAuthorFilter();
 
@@ -1240,16 +1370,19 @@ function renderVideoGallery(records) {
   currentVideoList = records;
   galleryVideo.innerHTML = "";
   records.forEach((record, idx) => {
+    const locked = isKurymdykLocked("video", record);
+    const displayName = locked ? "🎭 Курымдык" : record.name;
     const card = document.createElement("div");
-    card.className = "card";
+    card.className = "card" + (locked ? " kurymdyk-locked" : "");
     card.innerHTML = `
       <div class="video-thumb">
-        <img src="assets/video-cover.png" alt="${record.name}" loading="lazy">
+        <img src="${locked ? KURYMDYK_IMAGE : "assets/video-cover.png"}" alt="${displayName}" loading="lazy">
       </div>
+      ${locked ? `<div class="kurymdyk-badge" title="Платный просмотр">🎭 ${record.kurymdyk_price}</div>` : ""}
       ${record.followers_only ? `<div class="followers-only-badge" title="Только для подписчиков">🔒</div>` : ""}
-      <div class="video-badge">${SOURCE_LABELS[record.source] || "Видео"}</div>
-      <div class="name">${record.name}</div>
-      ${record.owner_name ? `<div class="owner-tag owner-tag-link" data-owner="${record.owner_code}"><span class="online-dot" data-online-for="${record.owner_code}"></span>от ${record.owner_name}</div>` : ""}
+      ${!locked ? `<div class="video-badge">${SOURCE_LABELS[record.source] || "Видео"}</div>` : ""}
+      <div class="name">${displayName}</div>
+      ${record.owner_name && !locked ? `<div class="owner-tag owner-tag-link" data-owner="${record.owner_code}"><span class="online-dot" data-online-for="${record.owner_code}"></span>от ${record.owner_name}</div>` : ""}
     `;
     card.addEventListener("click", () => openVideoLightbox(record, idx));
     const ownerTag = card.querySelector(".owner-tag-link");
@@ -1318,11 +1451,16 @@ function buildEmbedHtml(record) {
 function openVideoLightbox(record, index) {
   currentVideoRecord = record;
   currentVideoIndex = typeof index === "number" ? index : currentVideoList.indexOf(record);
-  videoLightboxName.textContent = record.name;
-  videoLightboxDescription.textContent = record.description || "";
-  videoLightboxDescription.style.display = record.description ? "block" : "none";
-  videoLightboxDate.textContent = formatPublishDate(record.created_at);
-  if (record.owner_name) {
+
+  const locked = isKurymdykLocked("video", record);
+  videoKurymdykPaywall.classList.toggle("hidden", !locked);
+  if (locked) videoKurymdykPriceLabel2.textContent = record.kurymdyk_price;
+
+  videoLightboxName.textContent = locked ? "🎭 Курымдык" : record.name;
+  videoLightboxDescription.textContent = locked ? "" : (record.description || "");
+  videoLightboxDescription.style.display = !locked && record.description ? "block" : "none";
+  videoLightboxDate.textContent = locked ? "" : formatPublishDate(record.created_at);
+  if (record.owner_name && !locked) {
     videoLightboxAuthor.innerHTML = `<span class="online-dot" data-online-for="${record.owner_code || ""}"></span>от ${escapeHtml(record.owner_name)}`;
     videoLightboxAuthor.dataset.owner = record.owner_code || "";
     videoLightboxAuthor.style.display = record.owner_code ? "block" : "none";
@@ -1331,9 +1469,14 @@ function openVideoLightbox(record, index) {
     videoLightboxAuthor.style.display = "none";
   }
 
-  const { html, landscape } = buildEmbedHtml(record);
-  videoContainer.innerHTML = html;
-  videoContainer.classList.toggle("landscape", !!landscape);
+  if (locked) {
+    videoContainer.innerHTML = `<img src="${KURYMDYK_IMAGE}" alt="курымдык" style="width:100%;height:100%;object-fit:contain;">`;
+    videoContainer.classList.remove("landscape");
+  } else {
+    const { html, landscape } = buildEmbedHtml(record);
+    videoContainer.innerHTML = html;
+    videoContainer.classList.toggle("landscape", !!landscape);
+  }
 
   const owner = isOwner(record);
   videoEditBtn.classList.toggle("hidden", !owner);
@@ -1345,6 +1488,10 @@ function openVideoLightbox(record, index) {
   updateVideoNavButtons();
 
   videoLightbox.classList.add("active");
+  videoLightbox.classList.toggle("kurymdyk-active", locked);
+
+  if (locked) return;
+
   loadRatings("video", record.id);
   loadComments("video", record.id);
   setReplyTarget("video", null);
@@ -1353,6 +1500,16 @@ function openVideoLightbox(record, index) {
   showViewCount("video", record.id, videoViewCounter);
   applyOnlinePresence();
   joinViewingPresence("video", record.id);
+}
+
+if (videoKurymdykUnlockBtn) {
+  videoKurymdykUnlockBtn.addEventListener("click", async () => {
+    if (!currentVideoRecord) return;
+    videoKurymdykUnlockBtn.disabled = true;
+    const ok = await unlockKurymdyk("video", currentVideoRecord);
+    videoKurymdykUnlockBtn.disabled = false;
+    if (ok) openVideoLightbox(currentVideoRecord, currentVideoIndex);
+  });
 }
 
 function updateVideoNavButtons() {
@@ -1429,6 +1586,10 @@ uploadVideoBtn.addEventListener("click", () => {
   if (newVideoCategoryWrap) newVideoCategoryWrap.classList.add("hidden");
   if (newVideoCategoryName) newVideoCategoryName.value = "";
   if (videoFollowersOnly) videoFollowersOnly.checked = false;
+  if (videoKurymdykEnabled) videoKurymdykEnabled.checked = false;
+  if (videoKurymdykWrap) videoKurymdykWrap.classList.add("hidden");
+  if (videoKurymdykPrice) videoKurymdykPrice.value = 1;
+  if (videoKurymdykPriceLabel) videoKurymdykPriceLabel.textContent = "1";
   videoModal.classList.add("active");
 });
 
@@ -1459,6 +1620,7 @@ videoConfirm.addEventListener("click", async () => {
         name: displayName,
         description: description || null,
         followers_only: videoFollowersOnly.checked,
+        kurymdyk_price: videoKurymdykEnabled && videoKurymdykEnabled.checked ? Number(videoKurymdykPrice.value) : 0,
       })
       .eq("id", editingVideoRecord.id);
 
@@ -1522,6 +1684,7 @@ videoConfirm.addEventListener("click", async () => {
       owner_code: currentIdentity ? currentIdentity.code : null,
       category_id: categoryId,
       followers_only: videoFollowersOnly.checked,
+      kurymdyk_price: videoKurymdykEnabled && videoKurymdykEnabled.checked ? Number(videoKurymdykPrice.value) : 0,
     })
     .select()
     .single();
@@ -1557,6 +1720,11 @@ videoEditBtn.addEventListener("click", () => {
   [...sourcePicker.children].forEach(b => b.classList.toggle("active", b.dataset.source === selectedSource));
   videoUrlHint.textContent = SOURCE_HINTS[selectedSource] || "";
   if (videoFollowersOnly) videoFollowersOnly.checked = !!currentVideoRecord.followers_only;
+  const videoKurymdykPriceVal = currentVideoRecord.kurymdyk_price || 0;
+  if (videoKurymdykEnabled) videoKurymdykEnabled.checked = videoKurymdykPriceVal > 0;
+  if (videoKurymdykWrap) videoKurymdykWrap.classList.toggle("hidden", videoKurymdykPriceVal <= 0);
+  if (videoKurymdykPrice) videoKurymdykPrice.value = videoKurymdykPriceVal > 0 ? videoKurymdykPriceVal : 1;
+  if (videoKurymdykPriceLabel) videoKurymdykPriceLabel.textContent = videoKurymdykPrice.value;
   videoModal.classList.add("active");
 });
 

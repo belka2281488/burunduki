@@ -88,6 +88,11 @@
 
   <div class="profile-banner-wrap">
     <img id="profileBanner" class="profile-banner" src="" alt="">
+    <div id="profileToolsFixed" class="profile-tools-fixed">
+      <button id="profileEditBtn" class="tool-btn hidden">✏️ Редактировать профиль</button>
+      <button id="profileFramesBtn" class="tool-btn hidden">🖼️ Рамки</button>
+      <button id="profileNameColorBtn" class="tool-btn hidden">🎨 Цвет ника</button>
+    </div>
     <button id="profileEditBannerBtn" class="profile-edit-banner-btn hidden" title="Изменить шапку">🖼️ Изменить шапку</button>
   </div>
 
@@ -101,9 +106,6 @@
     <div class="profile-info">
       <div class="profile-name-row">
         <span id="profileName" class="profile-name">—</span>
-        <button id="profileEditBtn" class="tool-btn hidden">✏️ Редактировать профиль</button>
-        <button id="profileFramesBtn" class="tool-btn hidden">🖼️ Рамки</button>
-        <button id="profileNameColorBtn" class="tool-btn hidden">🎨 Цвет ника</button>
         <button id="profileFollowBtn" class="pick-btn small hidden">Подписаться</button>
       </div>
       <div id="profileBio" class="profile-bio"></div>
@@ -230,6 +232,16 @@
       <span>🔒 Только для подписчиков</span>
     </label>
 
+    <label class="followers-only-toggle">
+      <input type="checkbox" id="uploadKurymdykEnabled">
+      <span>🎭 Курымдык (платный просмотр за гиперзадки)</span>
+    </label>
+    <div id="uploadKurymdykWrap" class="kurymdyk-wrap hidden">
+      <label class="modal-label">Сколько гиперзадок нужно подарить (1-10)</label>
+      <input type="range" id="uploadKurymdykPrice" min="1" max="10" step="1" value="1" class="modal-input">
+      <div class="kurymdyk-price-label"><img src="assets/giperzadka.png" style="width:14px;height:14px;object-fit:contain;"> <span id="uploadKurymdykPriceLabel">1</span></div>
+    </div>
+
     <div class="modal-actions">
       <button id="uploadCancel" class="tool-btn">Отмена</button>
       <button id="uploadConfirm" class="pick-btn small">Добавить в галерею</button>
@@ -273,6 +285,16 @@
       <span>🔒 Только для подписчиков</span>
     </label>
 
+    <label class="followers-only-toggle">
+      <input type="checkbox" id="videoKurymdykEnabled">
+      <span>🎭 Курымдык (платный просмотр за гиперзадки)</span>
+    </label>
+    <div id="videoKurymdykWrap" class="kurymdyk-wrap hidden">
+      <label class="modal-label">Сколько гиперзадок нужно подарить (1-10)</label>
+      <input type="range" id="videoKurymdykPrice" min="1" max="10" step="1" value="1" class="modal-input">
+      <div class="kurymdyk-price-label"><img src="assets/giperzadka.png" style="width:14px;height:14px;object-fit:contain;"> <span id="videoKurymdykPriceLabel">1</span></div>
+    </div>
+
     <div class="modal-actions">
       <button id="videoCancel" class="tool-btn">Отмена</button>
       <button id="videoConfirm" class="pick-btn small">Добавить в галерею</button>
@@ -295,6 +317,15 @@
 <!-- Лайтбокс для просмотра ФОТО -->
 <div id="lightbox" class="lightbox">
   <button class="lightbox-close" id="lightboxClose">&times;</button>
+
+  <div id="photoKurymdykPaywall" class="kurymdyk-paywall hidden">
+    <div class="kurymdyk-paywall-box">
+      <img src="assets/kurymdyk.png" class="kurymdyk-paywall-img" alt="курымдык">
+      <div class="kurymdyk-paywall-text">Это курымдык 🎭 Чтобы увидеть настоящее фото, название, описание и комментарии — подари автору гиперзадки.</div>
+      <div class="kurymdyk-paywall-price"><img src="assets/giperzadka.png" style="width:18px;height:18px;object-fit:contain;"> <span id="photoKurymdykPriceLabel">0</span></div>
+      <button id="photoKurymdykUnlockBtn" class="pick-btn small">Разблокировать</button>
+    </div>
+  </div>
 
   <div class="lightbox-main">
   <div class="lightbox-name" id="lightboxName"></div>
@@ -368,6 +399,15 @@
 <!-- Лайтбокс для просмотра ВИДЕО -->
 <div id="videoLightbox" class="lightbox">
   <button class="lightbox-close" id="videoLightboxClose">&times;</button>
+
+  <div id="videoKurymdykPaywall" class="kurymdyk-paywall hidden">
+    <div class="kurymdyk-paywall-box">
+      <img src="assets/kurymdyk.png" class="kurymdyk-paywall-img" alt="курымдык">
+      <div class="kurymdyk-paywall-text">Это курымдык 🎭 Чтобы увидеть настоящее видео, название, описание и комментарии — подари автору гиперзадки.</div>
+      <div class="kurymdyk-paywall-price"><img src="assets/giperzadka.png" style="width:18px;height:18px;object-fit:contain;"> <span id="videoKurymdykPriceLabel2">0</span></div>
+      <button id="videoKurymdykUnlockBtn" class="pick-btn small">Разблокировать</button>
+    </div>
+  </div>
 
   <div class="lightbox-main">
   <div class="lightbox-name" id="videoLightboxName"></div>

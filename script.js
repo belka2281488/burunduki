@@ -133,6 +133,7 @@ const copyBtn = document.getElementById("copyBtn");
 const shareBtn = document.getElementById("shareBtn");
 const editBtn = document.getElementById("editBtn");
 const deleteBtn = document.getElementById("deleteBtn");
+const pinBtn = document.getElementById("pinBtn");
 
 /* ---------- DOM: видео ---------- */
 const videoModal = document.getElementById("videoModal");
@@ -162,6 +163,7 @@ const videoOpenBtn = document.getElementById("videoOpenBtn");
 const videoShareBtn = document.getElementById("videoShareBtn");
 const videoEditBtn = document.getElementById("videoEditBtn");
 const videoDeleteBtn = document.getElementById("videoDeleteBtn");
+const videoPinBtn = document.getElementById("videoPinBtn");
 
 /* ---------- DOM: оценки ---------- */
 const ratingEls = {
@@ -881,6 +883,40 @@ deleteBtn.addEventListener("click", () => {
   deleteModal.classList.add("active");
 });
 
+pinBtn.addEventListener("click", () => togglePin("photo", currentPhotoRecord));
+
+// Закрепить/открепить публикацию в профиле владельца. Закреплённые
+// посты всегда показываются первыми на странице профиля.
+async function togglePin(kind, record) {
+  if (!record || !isOwner(record)) return;
+  const table = kind === "photo" ? PHOTO_TABLE : VIDEO_TABLE;
+  const nextPinned = !record.pinned;
+
+  const { error } = await db.from(table).update({ pinned: nextPinned }).eq("id", record.id);
+  if (error) {
+    showToast("Не удалось изменить закрепление: " + error.message);
+    return;
+  }
+
+  record.pinned = nextPinned;
+  showToast(nextPinned ? "Закреплено в профиле 📌" : "Откреплено");
+
+  if (kind === "photo") {
+    pinBtn.textContent = nextPinned ? "📌 Открепить" : "📌 Закрепить";
+    pinBtn.title = nextPinned ? "Убрать из закреплённых" : "Закрепить в профиле";
+  } else {
+    videoPinBtn.textContent = nextPinned ? "📌 Открепить" : "📌 Закрепить";
+    videoPinBtn.title = nextPinned ? "Убрать из закреплённых" : "Закрепить в профиле";
+  }
+
+  if (kind === "photo") loadPhotos();
+  else loadVideos();
+
+  if (viewingProfileCode === record.owner_code) {
+    renderProfileGallery(kind);
+  }
+}
+
 /* ---------- Лайтбокс фото ---------- */
 let currentMode = "loupe";
 
@@ -908,6 +944,9 @@ function openLightbox(record, src, index) {
   const owner = isOwner(record);
   editBtn.classList.toggle("hidden", !owner);
   deleteBtn.classList.toggle("hidden", !owner);
+  pinBtn.classList.toggle("hidden", !owner);
+  pinBtn.textContent = record.pinned ? "📌 Открепить" : "📌 Закрепить";
+  pinBtn.title = record.pinned ? "Убрать из закреплённых" : "Закрепить в профиле";
 
   updateLightboxNavButtons();
 
@@ -1257,6 +1296,9 @@ function openVideoLightbox(record, index) {
   const owner = isOwner(record);
   videoEditBtn.classList.toggle("hidden", !owner);
   videoDeleteBtn.classList.toggle("hidden", !owner);
+  videoPinBtn.classList.toggle("hidden", !owner);
+  videoPinBtn.textContent = record.pinned ? "📌 Открепить" : "📌 Закрепить";
+  videoPinBtn.title = record.pinned ? "Убрать из закреплённых" : "Закрепить в профиле";
 
   updateVideoNavButtons();
 
@@ -1475,6 +1517,8 @@ videoEditBtn.addEventListener("click", () => {
   if (videoFollowersOnly) videoFollowersOnly.checked = !!currentVideoRecord.followers_only;
   videoModal.classList.add("active");
 });
+
+videoPinBtn.addEventListener("click", () => togglePin("video", currentVideoRecord));
 
 videoDeleteBtn.addEventListener("click", () => {
   if (!currentVideoRecord) return;
@@ -2123,6 +2167,26 @@ async function logActivity(kindEvent, targetType, record, extra) {
   }
 }
 
+// Кладём в центр активности того, на кого подписались, событие "follow" —
+// у события нет привязки к конкретному фото/видео (target_type='profile').
+async function notifyFollow(targetOwnerCode) {
+  if (!currentIdentity || !targetOwnerCode) return;
+  if (targetOwnerCode === currentIdentity.code) return;
+  try {
+    await db.from(ACTIVITY_TABLE).insert({
+      kind: "follow",
+      target_type: "profile",
+      target_id: null,
+      target_name: null,
+      owner_code: targetOwnerCode,
+      actor_code: currentIdentity.code,
+      actor_name: currentIdentity.name,
+    });
+  } catch (err) {
+    console.error("[activity] не удалось записать событие подписки:", err);
+  }
+}
+
 async function refreshActivityBadge() {
   if (!currentIdentity || !db) {
     activityBadge.classList.add("hidden");
@@ -2151,6 +2215,7 @@ function activityIcon(kind) {
   if (kind === "comment") return "💬";
   if (kind === "gift") return "🎁";
   if (kind === "new_post") return "🐿️";
+  if (kind === "follow") return "➕";
   return "🔔";
 }
 
@@ -2161,6 +2226,7 @@ function activityText(item) {
   if (item.kind === "comment") return `${who} написал(а) комментарий под ${what}`;
   if (item.kind === "gift") return `${who} отправил(а) тебе гиперзадку за ${what}`;
   if (item.kind === "new_post") return `${who} выложил(а) новую публикацию ${what}`;
+  if (item.kind === "follow") return `${who} подписался(лась) на тебя`;
   return `${who}: событие по ${what}`;
 }
 
@@ -2216,6 +2282,10 @@ async function loadActivityFeed() {
     el.addEventListener("click", async () => {
       const item = items[Number(el.dataset.idx)];
       activityPanel.classList.add("hidden");
+      if (item.kind === "follow") {
+        openProfile(item.actor_code);
+        return;
+      }
       await goToPublication(item.target_type, item.target_id);
     });
   });
@@ -2349,7 +2419,10 @@ profileTabVideo.addEventListener("click", () => switchProfileTab("video"));
 function renderProfileGallery(kind) {
   if (!viewingProfileCode) return;
   const source = kind === "photo" ? allPhotoRecords : allVideoRecords;
-  const records = source.filter((r) => r.owner_code === viewingProfileCode);
+  const records = source
+    .filter((r) => r.owner_code === viewingProfileCode)
+    .slice()
+    .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
   const el = kind === "photo" ? profileGalleryPhoto : profileGalleryVideo;
 
   profileEmpty.classList.toggle("hidden", records.length > 0);
@@ -2362,6 +2435,7 @@ function renderProfileGallery(kind) {
       const src = publicUrlFor(record.storage_path);
       card.innerHTML = `
         <img src="${src}" alt="${record.name}" loading="lazy">
+        ${record.pinned ? `<div class="pinned-badge" title="Закреплено">📌</div>` : ""}
         ${record.followers_only ? `<div class="followers-only-badge" title="Только для подписчиков">🔒</div>` : ""}
         <div class="name">${record.name}</div>
       `;
@@ -2372,6 +2446,7 @@ function renderProfileGallery(kind) {
     } else {
       card.innerHTML = `
         <div class="video-thumb"><img src="assets/video-cover.png" alt="${record.name}" loading="lazy"></div>
+        ${record.pinned ? `<div class="pinned-badge" title="Закреплено">📌</div>` : ""}
         ${record.followers_only ? `<div class="followers-only-badge" title="Только для подписчиков">🔒</div>` : ""}
         <div class="video-badge">${SOURCE_LABELS[record.source] || "Видео"}</div>
         <div class="name">${record.name}</div>
@@ -2447,6 +2522,7 @@ profileFollowBtn.addEventListener("click", async () => {
       target_code: viewingProfileCode,
     });
     showToast("Подписка оформлена 🐿️");
+    notifyFollow(viewingProfileCode);
   }
 
   // Подписка меняет, какие "только для подписчиков" посты видны —

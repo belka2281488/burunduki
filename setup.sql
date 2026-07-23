@@ -265,9 +265,9 @@ with check (true);
 -- карточки). actor_code/actor_name — кто это сделал.
 create table if not exists burunduk_activity (
   id uuid primary key default gen_random_uuid(),
-  kind text not null check (kind in ('view', 'comment', 'gift')),
-  target_type text not null check (target_type in ('photo', 'video')),
-  target_id uuid not null,
+  kind text not null check (kind in ('view', 'comment', 'gift', 'new_post', 'follow')),
+  target_type text not null check (target_type in ('photo', 'video', 'profile')),
+  target_id uuid,
   target_name text,
   owner_code text not null,
   actor_code text not null,

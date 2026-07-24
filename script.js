@@ -29,6 +29,8 @@ const NAME_GRADIENT_PRESETS = [
 ];
 const FOLLOWS_TABLE = "burunduk_follows";
 const KURYMDYK_IMAGE = "assets/kurymdyk.png";
+const KURYMDYK_NAME_TEXT = "Курымдык";
+const KURYMDYK_NAME_HTML = "Курымдык";
 const KURYMDYK_UNLOCKS_TABLE = "burunduk_kurymdyk_unlocks";
 
 const FRAMES_TABLE = "burunduk_frames";
@@ -327,7 +329,7 @@ function ensureIdentity() {
   nameModal.classList.add("active");
 }
 
-nameConfirm.addEventListener("click", () => {
+nameConfirm.addEventListener("click", async () => {
   const name = nameInput.value.trim();
   if (!name) {
     showToast("Введи своё имя");
@@ -341,6 +343,18 @@ nameConfirm.addEventListener("click", () => {
   refreshActivityBadge();
   subscribeActivityRealtime();
   subscribeSitePresence();
+
+  if (db && currentIdentity) {
+    delete profileCache[currentIdentity.code];
+    await db
+      .from(PROFILES_TABLE)
+      .upsert({ owner_code: currentIdentity.code, display_name: name }, { onConflict: "owner_code" });
+    delete profileCache[currentIdentity.code];
+  }
+
+  unlockedKurymdykSet = null;
+  unlockedKurymdykForCode = null;
+  await Promise.all([loadPhotos(), loadVideos()]);
 });
 
 changeNameBtn.addEventListener("click", () => {
@@ -737,9 +751,10 @@ async function loadPhotos() {
   }
 
   if (!mySubscriptions) await loadMySubscriptions();
-  if (!unlockedKurymdykSet) await loadUnlockedKurymdyk();
+  await loadUnlockedKurymdyk();
   allPhotoRecords = (data || []).filter(canSeeRecord);
   fillAuthorFilter();
+  await preloadProfilesFor(allPhotoRecords);
 
   if (!allPhotoRecords.length) {
     statusEl.textContent = "Пока нет ни одного фото — добавь первое!";
@@ -751,10 +766,15 @@ async function loadPhotos() {
 }
 
 let unlockedKurymdykSet = null; // Set из "photo:<id>" / "video:<id>", которые текущий юзер уже оплатил
+let unlockedKurymdykForCode = null; // owner_code, для которого сейчас загружен unlockedKurymdykSet
 
 async function loadUnlockedKurymdyk() {
   if (!currentIdentity || !db) {
     unlockedKurymdykSet = new Set();
+    unlockedKurymdykForCode = null;
+    return unlockedKurymdykSet;
+  }
+  if (unlockedKurymdykSet && unlockedKurymdykForCode === currentIdentity.code) {
     return unlockedKurymdykSet;
   }
   const { data, error } = await db
@@ -762,7 +782,15 @@ async function loadUnlockedKurymdyk() {
     .select("target_type, target_id")
     .eq("viewer_code", currentIdentity.code);
 
-  unlockedKurymdykSet = new Set(error ? [] : (data || []).map((r) => `${r.target_type}:${r.target_id}`));
+  if (error) {
+    console.error("[kurymdyk] не удалось загрузить разблокировки:", error);
+    unlockedKurymdykSet = new Set();
+    unlockedKurymdykForCode = null;
+    return unlockedKurymdykSet;
+  }
+
+  unlockedKurymdykSet = new Set((data || []).map((r) => `${r.target_type}:${r.target_id}`));
+  unlockedKurymdykForCode = currentIdentity.code;
   return unlockedKurymdykSet;
 }
 
@@ -829,15 +857,16 @@ function renderPhotoGallery(records) {
   records.forEach((record, idx) => {
     const locked = isKurymdykLocked("photo", record);
     const src = locked ? KURYMDYK_IMAGE : publicUrlFor(record.storage_path);
-    const displayName = locked ? "🎭 Курымдык" : record.name;
+    const displayName = locked ? KURYMDYK_NAME_TEXT : record.name;
+    const displayNameHtml = locked ? KURYMDYK_NAME_HTML : escapeHtml(record.name);
     const card = document.createElement("div");
     card.className = "card" + (locked ? " kurymdyk-locked" : "");
     card.innerHTML = `
       <img src="${src}" alt="${displayName}" loading="lazy">
-      ${locked ? `<div class="kurymdyk-badge" title="Платный просмотр">🎭 ${record.kurymdyk_price}</div>` : ""}
+      ${locked ? `<div class="kurymdyk-badge" title="Платный просмотр"><img src="assets/giperzadka.png" style="width:14px;height:14px;object-fit:contain;"> ${record.kurymdyk_price}</div>` : ""}
       ${record.followers_only ? `<div class="followers-only-badge" title="Только для подписчиков">🔒</div>` : ""}
-      <div class="name">${displayName}</div>
-      ${record.owner_name && !locked ? `<div class="owner-tag owner-tag-link" data-owner="${record.owner_code}"><span class="online-dot" data-online-for="${record.owner_code}"></span>от ${record.owner_name}</div>` : ""}
+      <div class="name">${displayNameHtml}</div>
+      ${record.owner_name && !locked ? `<div class="owner-tag owner-tag-link" data-owner="${record.owner_code}"><span class="online-dot" data-online-for="${record.owner_code}"></span>от ${displayNameFor(record.owner_code, record.owner_name)}</div>` : ""}
     `;
     card.addEventListener("click", () => openLightbox(record, locked ? KURYMDYK_IMAGE : src, idx));
     const ownerTag = card.querySelector(".owner-tag-link");
@@ -1069,22 +1098,23 @@ function openLightbox(record, src, index) {
   currentPhotoRecord = record;
   currentPhotoSrc = src;
   currentPhotoIndex = typeof index === "number" ? index : currentPhotoList.indexOf(record);
+  if (record.owner_code) fetchProfile(record.owner_code);
 
   const locked = isKurymdykLocked("photo", record);
   photoKurymdykPaywall.classList.toggle("hidden", !locked);
   if (locked) photoKurymdykPriceLabel.textContent = record.kurymdyk_price;
 
-  const displayName = locked ? "🎭 Курымдык" : record.name;
+  const displayName = locked ? KURYMDYK_NAME_TEXT : record.name;
   const displaySrc = locked ? KURYMDYK_IMAGE : src;
 
   lightboxImg.src = displaySrc;
   lightboxImg.style.transform = "";
-  lightboxName.textContent = displayName;
+  lightboxName.innerHTML = locked ? KURYMDYK_NAME_HTML : escapeHtml(record.name);
   lightboxDescription.textContent = locked ? "" : (record.description || "");
   lightboxDescription.style.display = !locked && record.description ? "block" : "none";
   lightboxDate.textContent = locked ? "" : formatPublishDate(record.created_at);
   if (record.owner_name && !locked) {
-    lightboxAuthor.innerHTML = `<span class="online-dot" data-online-for="${record.owner_code || ""}"></span>от ${escapeHtml(record.owner_name)}`;
+    lightboxAuthor.innerHTML = `<span class="online-dot" data-online-for="${record.owner_code || ""}"></span>от ${escapeHtml(displayNameFor(record.owner_code, record.owner_name))}`;
     lightboxAuthor.dataset.owner = record.owner_code || "";
     lightboxAuthor.style.display = record.owner_code ? "block" : "none";
   } else {
@@ -1342,9 +1372,10 @@ async function loadVideos() {
   }
 
   if (!mySubscriptions) await loadMySubscriptions();
-  if (!unlockedKurymdykSet) await loadUnlockedKurymdyk();
+  await loadUnlockedKurymdyk();
   allVideoRecords = (data || []).filter(canSeeRecord);
   fillAuthorFilter();
+  await preloadProfilesFor(allVideoRecords);
 
   if (!allVideoRecords.length) {
     statusEl.textContent = "Пока нет ни одного видео — добавь первое!";
@@ -1371,18 +1402,19 @@ function renderVideoGallery(records) {
   galleryVideo.innerHTML = "";
   records.forEach((record, idx) => {
     const locked = isKurymdykLocked("video", record);
-    const displayName = locked ? "🎭 Курымдык" : record.name;
+    const displayName = locked ? KURYMDYK_NAME_TEXT : record.name;
+    const displayNameHtml = locked ? KURYMDYK_NAME_HTML : escapeHtml(record.name);
     const card = document.createElement("div");
     card.className = "card" + (locked ? " kurymdyk-locked" : "");
     card.innerHTML = `
       <div class="video-thumb">
         <img src="${locked ? KURYMDYK_IMAGE : "assets/video-cover.png"}" alt="${displayName}" loading="lazy">
       </div>
-      ${locked ? `<div class="kurymdyk-badge" title="Платный просмотр">🎭 ${record.kurymdyk_price}</div>` : ""}
+      ${locked ? `<div class="kurymdyk-badge" title="Платный просмотр"><img src="assets/giperzadka.png" style="width:14px;height:14px;object-fit:contain;"> ${record.kurymdyk_price}</div>` : ""}
       ${record.followers_only ? `<div class="followers-only-badge" title="Только для подписчиков">🔒</div>` : ""}
       ${!locked ? `<div class="video-badge">${SOURCE_LABELS[record.source] || "Видео"}</div>` : ""}
-      <div class="name">${displayName}</div>
-      ${record.owner_name && !locked ? `<div class="owner-tag owner-tag-link" data-owner="${record.owner_code}"><span class="online-dot" data-online-for="${record.owner_code}"></span>от ${record.owner_name}</div>` : ""}
+      <div class="name">${displayNameHtml}</div>
+      ${record.owner_name && !locked ? `<div class="owner-tag owner-tag-link" data-owner="${record.owner_code}"><span class="online-dot" data-online-for="${record.owner_code}"></span>от ${displayNameFor(record.owner_code, record.owner_name)}</div>` : ""}
     `;
     card.addEventListener("click", () => openVideoLightbox(record, idx));
     const ownerTag = card.querySelector(".owner-tag-link");
@@ -1451,17 +1483,18 @@ function buildEmbedHtml(record) {
 function openVideoLightbox(record, index) {
   currentVideoRecord = record;
   currentVideoIndex = typeof index === "number" ? index : currentVideoList.indexOf(record);
+  if (record.owner_code) fetchProfile(record.owner_code);
 
   const locked = isKurymdykLocked("video", record);
   videoKurymdykPaywall.classList.toggle("hidden", !locked);
   if (locked) videoKurymdykPriceLabel2.textContent = record.kurymdyk_price;
 
-  videoLightboxName.textContent = locked ? "🎭 Курымдык" : record.name;
+  videoLightboxName.innerHTML = locked ? KURYMDYK_NAME_HTML : escapeHtml(record.name);
   videoLightboxDescription.textContent = locked ? "" : (record.description || "");
   videoLightboxDescription.style.display = !locked && record.description ? "block" : "none";
   videoLightboxDate.textContent = locked ? "" : formatPublishDate(record.created_at);
   if (record.owner_name && !locked) {
-    videoLightboxAuthor.innerHTML = `<span class="online-dot" data-online-for="${record.owner_code || ""}"></span>от ${escapeHtml(record.owner_name)}`;
+    videoLightboxAuthor.innerHTML = `<span class="online-dot" data-online-for="${record.owner_code || ""}"></span>от ${escapeHtml(displayNameFor(record.owner_code, record.owner_name))}`;
     videoLightboxAuthor.dataset.owner = record.owner_code || "";
     videoLightboxAuthor.style.display = record.owner_code ? "block" : "none";
   } else {
@@ -1870,6 +1903,7 @@ async function submitRating(kind) {
 
   loadRatings(kind, currentRatingTarget[kind]);
   loadAllRatings();
+  loadComments(kind, currentRatingTarget[kind]);
 }
 
 ratingEls.photo.submit.addEventListener("click", () => submitRating("photo"));
@@ -1893,7 +1927,12 @@ function setReplyTarget(kind, comment) {
   els.input.focus();
 }
 
-function renderComments(kind, comments) {
+function truncateName(name, maxLen) {
+  const str = name || "аноним";
+  return str.length > maxLen ? str.slice(0, maxLen) + "…" : str;
+}
+
+function renderComments(kind, comments, rankByAuthor, giftedCommentIds) {
   const els = commentEls[kind];
   els.list.innerHTML = "";
   if (!comments.length) {
@@ -1905,17 +1944,29 @@ function renderComments(kind, comments) {
 
   comments.forEach((c) => {
     const item = document.createElement("div");
-    item.className = "comment-item" + (c.reply_to_id ? " comment-item-reply" : "");
+    const gifted = giftedCommentIds && giftedCommentIds.has(c.id);
+    item.className = "comment-item" + (c.reply_to_id ? " comment-item-reply" : "") + (gifted ? " comment-item-gifted" : "");
 
     const parent = c.reply_to_id ? byId.get(c.reply_to_id) : null;
     const replyTag = parent
-      ? `<div class="comment-reply-tag">→ ${escapeHtml(parent.author_name || "аноним")}</div>`
+      ? `<div class="comment-reply-tag">→ ${escapeHtml(truncateName(parent.author_name, 15))}</div>`
+      : "";
+
+    const rank = rankByAuthor && c.author_code ? rankByAuthor.get(c.author_code) : null;
+    const rankLevel = rank ? RANK_LEVELS[rank - 1] : null;
+    const rankBadge = rankLevel
+      ? `<span class="comment-rank-badge" title="Оценка: ${escapeHtml(rankLevel.label)}"><img src="${rankLevel.asset}" alt=""> ${rankLevel.code}</span>`
+      : "";
+    const giftBadge = gifted
+      ? `<span class="comment-gift-badge" title="Подарил гиперзадку"><img src="assets/giperzadka.png" alt=""></span>`
       : "";
 
     item.innerHTML = `
       <div class="comment-head">
         <span class="online-dot" data-online-for="${c.author_code || ""}"></span>
-        <span class="comment-author">${escapeHtml(c.author_name || "аноним")}</span>
+        <span class="comment-author" title="${escapeHtml(c.author_name || "аноним")}">${escapeHtml(truncateName(c.author_name, 15))}</span>
+        ${rankBadge}
+        ${giftBadge}
         <span class="comment-time">${timeAgo(c.created_at)}</span>
       </div>
       ${replyTag}
@@ -1933,19 +1984,21 @@ function renderComments(kind, comments) {
 }
 
 async function loadComments(kind, targetId) {
-  const { data, error } = await db
-    .from(COMMENTS_TABLE)
-    .select("*")
-    .eq("target_type", kind)
-    .eq("target_id", targetId)
-    .order("created_at", { ascending: true });
+  const [commentsRes, ratingsRes, giftsRes] = await Promise.all([
+    db.from(COMMENTS_TABLE).select("*").eq("target_type", kind).eq("target_id", targetId).order("created_at", { ascending: true }),
+    db.from(RATING_TABLE).select("rater_code, rank").eq("target_type", kind).eq("target_id", targetId),
+    db.from(GIGER_GIFTS_TABLE).select("linked_comment_id").eq("target_type", kind).eq("target_id", targetId),
+  ]);
 
-  if (error) {
+  if (commentsRes.error) {
     commentEls[kind].list.innerHTML = `<div class="rating-comments-empty">Не удалось загрузить комментарии</div>`;
     return;
   }
 
-  renderComments(kind, data || []);
+  const rankByAuthor = new Map((ratingsRes.data || []).map((r) => [r.rater_code, r.rank]));
+  const giftedCommentIds = new Set((giftsRes.data || []).map((g) => g.linked_comment_id).filter(Boolean));
+
+  renderComments(kind, commentsRes.data || [], rankByAuthor, giftedCommentIds);
 }
 
 async function submitComment(kind) {
@@ -1970,15 +2023,19 @@ async function submitComment(kind) {
   els.submit.disabled = true;
   els.submit.textContent = "Отправляю...";
 
-  const { error } = await db.from(COMMENTS_TABLE).insert({
-    target_type: kind,
-    target_id: targetId,
-    owner_code: record.owner_code || null,
-    author_code: currentIdentity.code,
-    author_name: currentIdentity.name,
-    text,
-    reply_to_id: commentReplyTarget[kind] ? commentReplyTarget[kind].id : null,
-  });
+  const { data: insertedComment, error } = await db
+    .from(COMMENTS_TABLE)
+    .insert({
+      target_type: kind,
+      target_id: targetId,
+      owner_code: record.owner_code || null,
+      author_code: currentIdentity.code,
+      author_name: currentIdentity.name,
+      text,
+      reply_to_id: commentReplyTarget[kind] ? commentReplyTarget[kind].id : null,
+    })
+    .select()
+    .single();
 
   if (error) {
     els.submit.disabled = false;
@@ -1991,7 +2048,7 @@ async function submitComment(kind) {
   // её этой карточке раньше — дарим вместе с комментарием (оценка не нужна).
   const gEls = gigerEls[kind];
   if (gEls.checkbox.checked && !alreadyGifted[kind]) {
-    await sendGiger(kind, record, text);
+    await sendGiger(kind, record, text, insertedComment ? insertedComment.id : null);
   } else {
     showToast("Комментарий отправлен 💬");
   }
@@ -2116,7 +2173,7 @@ async function loadGiftState(kind, record) {
 
 // Отправляет подарок гиперзадки для карточки (вызывается только из submitRating,
 // вместе с отправкой оценки/комментария — отдельно чекбокс ничего не шлёт).
-async function sendGiger(kind, record, comment) {
+async function sendGiger(kind, record, comment, linkedCommentId) {
   const { data, error } = await db.rpc("giger_gift", {
     p_giver_code: currentIdentity.code,
     p_giver_name: currentIdentity.name,
@@ -2136,6 +2193,7 @@ async function sendGiger(kind, record, comment) {
     giver_name: currentIdentity.name,
     owner_code: record.owner_code,
     comment: comment || null,
+    linked_comment_id: linkedCommentId || null,
   });
 
   if (insertErr) {
@@ -2573,6 +2631,27 @@ function displayNameFor(ownerCode, fallbackName) {
   return (p && p.display_name) || fallbackName || "Без имени";
 }
 
+async function preloadProfilesFor(records) {
+  if (!db) return;
+  const codes = [...new Set(records.map((r) => r.owner_code).filter(Boolean))];
+  const missing = codes.filter((c) => !(c in profileCache));
+  if (!missing.length) return;
+
+  const { data, error } = await db.from(PROFILES_TABLE).select("*").in("owner_code", missing);
+  if (error) {
+    console.error("[profile] не удалось пакетно загрузить профили:", error);
+    return;
+  }
+  const found = new Set();
+  (data || []).forEach((p) => {
+    profileCache[p.owner_code] = p;
+    found.add(p.owner_code);
+  });
+  missing.forEach((c) => {
+    if (!found.has(c)) profileCache[c] = null;
+  });
+}
+
 function applyNameColor(el, nameColor) {
   el.classList.remove("gradient-name-text");
   el.style.color = "";
@@ -2635,6 +2714,7 @@ async function openProfile(ownerCode) {
 
   await refreshFollowButton(ownerCode);
   await refreshProfileStats(ownerCode);
+  await loadUnlockedKurymdyk();
 
   switchProfileTab("photo");
 }
@@ -2670,27 +2750,32 @@ function renderProfileGallery(kind) {
   el.innerHTML = "";
 
   records.forEach((record, idx) => {
+    const locked = isKurymdykLocked(kind, record);
+    const displayName = locked ? KURYMDYK_NAME_TEXT : record.name;
+    const displayNameHtml = locked ? KURYMDYK_NAME_HTML : escapeHtml(record.name);
     const card = document.createElement("div");
-    card.className = "card";
+    card.className = "card" + (locked ? " kurymdyk-locked" : "");
     if (kind === "photo") {
-      const src = publicUrlFor(record.storage_path);
+      const src = locked ? KURYMDYK_IMAGE : publicUrlFor(record.storage_path);
       card.innerHTML = `
-        <img src="${src}" alt="${record.name}" loading="lazy">
-        ${record.pinned ? `<div class="pinned-badge" title="Закреплено">📌</div>` : ""}
-        ${record.followers_only ? `<div class="followers-only-badge" title="Только для подписчиков">🔒</div>` : ""}
-        <div class="name">${record.name}</div>
+        <img src="${src}" alt="${displayName}" loading="lazy">
+        ${record.pinned && !locked ? `<div class="pinned-badge" title="Закреплено">📌</div>` : ""}
+        ${locked ? `<div class="kurymdyk-badge" title="Платный просмотр"><img src="assets/giperzadka.png" style="width:14px;height:14px;object-fit:contain;"> ${record.kurymdyk_price}</div>` : ""}
+        ${record.followers_only && !locked ? `<div class="followers-only-badge" title="Только для подписчиков">🔒</div>` : ""}
+        <div class="name">${displayNameHtml}</div>
       `;
       card.addEventListener("click", () => {
         const galleryIdx = currentPhotoList.indexOf(record);
-        openLightbox(record, src, galleryIdx === -1 ? undefined : galleryIdx);
+        openLightbox(record, locked ? KURYMDYK_IMAGE : src, galleryIdx === -1 ? undefined : galleryIdx);
       });
     } else {
       card.innerHTML = `
-        <div class="video-thumb"><img src="assets/video-cover.png" alt="${record.name}" loading="lazy"></div>
-        ${record.pinned ? `<div class="pinned-badge" title="Закреплено">📌</div>` : ""}
-        ${record.followers_only ? `<div class="followers-only-badge" title="Только для подписчиков">🔒</div>` : ""}
-        <div class="video-badge">${SOURCE_LABELS[record.source] || "Видео"}</div>
-        <div class="name">${record.name}</div>
+        <div class="video-thumb"><img src="${locked ? KURYMDYK_IMAGE : "assets/video-cover.png"}" alt="${displayName}" loading="lazy"></div>
+        ${record.pinned && !locked ? `<div class="pinned-badge" title="Закреплено">📌</div>` : ""}
+        ${locked ? `<div class="kurymdyk-badge" title="Платный просмотр"><img src="assets/giperzadka.png" style="width:14px;height:14px;object-fit:contain;"> ${record.kurymdyk_price}</div>` : ""}
+        ${record.followers_only && !locked ? `<div class="followers-only-badge" title="Только для подписчиков">🔒</div>` : ""}
+        ${!locked ? `<div class="video-badge">${SOURCE_LABELS[record.source] || "Видео"}</div>` : ""}
+        <div class="name">${displayNameHtml}</div>
       `;
       card.addEventListener("click", () => {
         const galleryIdx = currentVideoList.indexOf(record);

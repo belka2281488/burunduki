@@ -1,6 +1,8 @@
 const PHOTO_TABLE = "burunduki";
 const VIDEO_TABLE = "burunduki_videos";
 const CATEGORY_TABLE = "burunduk_categories";
+const GIGER_TABLE = "burunduk_gigers";
+const PROFILES_TABLE = "burunduk_profiles";
 
 let db = null;
 let allCategories = [];
@@ -637,10 +639,12 @@ function renderUsers() {
         <div class="admin-row-sub">фото: ${u.photoCount} · видео: ${u.videoCount} · код: ${u.code.slice(0, 8)}...</div>
       </div>
       <div class="admin-row-actions">
+        <button class="tool-btn" data-gift-gigers>Выдать гиперзадки</button>
         <button class="tool-btn" data-rename>Переименовать везде</button>
       </div>
     `;
     row.querySelector("[data-rename]").addEventListener("click", () => renameUserEverywhere(u));
+    row.querySelector("[data-gift-gigers]").addEventListener("click", () => giftGigersToUser(u.code, u.name));
     el.appendChild(row);
   });
 }
@@ -665,6 +669,170 @@ async function renameUserEverywhere(user) {
   await loadPhotos();
   await loadVideos();
   renderUsers();
+}
+
+/* ==================================================================
+   ВЫДАЧА ГИПЕРЗАДОК (админский чит — без списания у кого-либо)
+   ================================================================== */
+async function grantGigers(ownerCode, ownerName, amount) {
+  if (!ownerCode) {
+    showToast("Нужен owner_code пользователя");
+    return;
+  }
+  if (!amount || amount <= 0) {
+    showToast("Укажи количество гиперзадок больше нуля");
+    return;
+  }
+
+  const { data, error } = await db.rpc("admin_grant_gigers", {
+    p_owner_code: ownerCode,
+    p_owner_name: ownerName || null,
+    p_amount: Math.round(amount),
+  });
+
+  if (error) {
+    showToast("Не удалось выдать гиперзадки: " + error.message);
+    return;
+  }
+
+  showToast(`Выдано ${amount} гиперзадок ${ownerName ? `«${ownerName}» ` : ""}— новый баланс: ${data} 🐿️`);
+}
+
+function giftGigersToUser(ownerCode, ownerName) {
+  const amountStr = prompt(`Сколько гиперзадок выдать «${ownerName}»?`, "10");
+  if (!amountStr) return;
+  const amount = parseInt(amountStr, 10);
+  grantGigers(ownerCode, ownerName, amount);
+}
+
+async function findOwnerCodeByName(name) {
+  const normalized = name.trim().toLowerCase();
+  if (!normalized) return null;
+
+  const localMatch = collectUsers().find((u) => (u.name || "").trim().toLowerCase() === normalized);
+  if (localMatch) return { code: localMatch.code, name: localMatch.name };
+
+  const { data: profileMatches } = await db
+    .from("burunduk_profiles")
+    .select("owner_code, display_name")
+    .ilike("display_name", name.trim())
+    .limit(1);
+  if (profileMatches && profileMatches.length) {
+    return { code: profileMatches[0].owner_code, name: profileMatches[0].display_name };
+  }
+
+  const { data: gigerMatches } = await db
+    .from(GIGER_TABLE)
+    .select("owner_code, owner_name")
+    .ilike("owner_name", name.trim())
+    .limit(1);
+  if (gigerMatches && gigerMatches.length) {
+    return { code: gigerMatches[0].owner_code, name: gigerMatches[0].owner_name };
+  }
+
+  return null;
+}
+
+const giftGigersBtn = document.getElementById("giftGigersBtn");
+if (giftGigersBtn) {
+  giftGigersBtn.addEventListener("click", async () => {
+    const ownerName = document.getElementById("giftGigersOwnerName").value.trim();
+    const amount = parseInt(document.getElementById("giftGigersAmount").value, 10);
+
+    if (!ownerName) {
+      showToast("Впиши имя пользователя");
+      return;
+    }
+
+    const found = await findOwnerCodeByName(ownerName);
+    if (!found) {
+      showToast(`Не нашёл пользователя «${ownerName}» — он ещё ни разу не заходил на сайт`);
+      return;
+    }
+
+    await grantGigers(found.code, found.name || ownerName, amount);
+  });
+}
+
+/* ==================================================================
+   ВЫДАЧА РАМОК (админский чит — без списания гиперзадок и без проверки условий)
+   ================================================================== */
+const FRAME_DEFS = [
+  { id: "wombatramka", name: "Вомбатрамка", asset: "assets/wombatramka.png" },
+  { id: "burundukramka", name: "Бурундукрамка", asset: "assets/burundukramka.png" },
+  { id: "belkoslavramka", name: "Белкославрамка", asset: "assets/belkoslavramka.png" },
+  { id: "patriotramka", name: "Патриотрамка", asset: "assets/patriotramka.png" },
+  { id: "capuchinramka", name: "Капуцинрамка", asset: "assets/capuchinramka.png" },
+  { id: "sonkaramka", name: "Сонкарамка", asset: "assets/Sonkaramka.png" },
+];
+const FRAMES_TABLE = "burunduk_frames";
+
+function fillFrameSelect() {
+  const select = document.getElementById("giftFrameSelect");
+  if (!select) return;
+  select.innerHTML = FRAME_DEFS.map((f) => `<option value="${f.id}">${escapeHtml(f.name)}</option>`).join("");
+}
+
+async function grantFrame(ownerCode, ownerName, frameId) {
+  if (!ownerCode) {
+    showToast("Нужен owner_code пользователя");
+    return;
+  }
+  if (!frameId) {
+    showToast("Выбери рамку");
+    return;
+  }
+
+  const { error } = await db
+    .from(FRAMES_TABLE)
+    .upsert(
+      { owner_code: ownerCode, frame_id: frameId },
+      { onConflict: "owner_code,frame_id", ignoreDuplicates: true }
+    );
+
+  if (error) {
+    showToast("Не удалось выдать рамку: " + error.message);
+    return;
+  }
+
+  const frameDef = FRAME_DEFS.find((f) => f.id === frameId);
+
+  const equipToo = document.getElementById("giftFrameEquipToo");
+  if (equipToo && equipToo.checked) {
+    const { error: equipError } = await db
+      .from(PROFILES_TABLE)
+      .upsert({ owner_code: ownerCode, equipped_frame: frameId }, { onConflict: "owner_code" });
+    if (equipError) {
+      showToast(`Рамка выдана, но не удалось надеть: ${equipError.message}`);
+      return;
+    }
+    showToast(`Рамка «${frameDef ? frameDef.name : frameId}» выдана и надета на ${ownerName ? `«${ownerName}» ` : ""}✅`);
+    return;
+  }
+
+  showToast(`Рамка «${frameDef ? frameDef.name : frameId}» выдана ${ownerName ? `«${ownerName}» ` : ""}✅`);
+}
+
+const giftFrameBtn = document.getElementById("giftFrameBtn");
+if (giftFrameBtn) {
+  fillFrameSelect();
+  giftFrameBtn.addEventListener("click", async () => {
+    const ownerName = document.getElementById("giftFrameOwnerName").value.trim();
+    const frameId = document.getElementById("giftFrameSelect").value;
+
+    if (!ownerName) {
+      showToast("Впиши имя пользователя");
+      return;
+    }
+
+    const found = await findOwnerCodeByName(ownerName);
+    if (!found) {
+      showToast(`Не нашёл пользователя «${ownerName}» — он ещё ни разу не заходил на сайт (нужно хотя бы задать имя в профиле)`);
+      return;
+    }
+
+    await grantFrame(found.code, found.name || ownerName, frameId);
+  });
 }
 
 /* ---------- Присвоение автора старым фото без владельца ---------- */

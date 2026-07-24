@@ -49,6 +49,30 @@
     <div id="videosList" class="admin-list">Загружаю...</div>
   </section>
 
+  <section class="admin-section" id="section-gigers">
+    <h2>🐿️ Выдать гиперзадки</h2>
+    <p class="admin-hint">Впиши имя пользователя (как оно отображается на сайте) — если такой автор уже публиковал фото/видео, код подставится сам. Либо просто нажми "Выдать гиперзадки" прямо в разделе "Пользователи" ниже.</p>
+    <div class="admin-add-row">
+      <input type="text" id="giftGigersOwnerName" class="modal-input" placeholder="имя пользователя">
+      <input type="number" id="giftGigersAmount" class="modal-input" placeholder="сколько гиперзадок" value="10" min="1" style="max-width: 140px;">
+      <button id="giftGigersBtn" class="pick-btn small">Выдать</button>
+    </div>
+  </section>
+
+  <section class="admin-section" id="section-frames">
+    <h2>🖼️ Выдать рамку аватарки</h2>
+    <p class="admin-hint">Впиши имя пользователя (как оно отображается на сайте) — если такой автор уже публиковал фото/видео или заходил на сайт, код подставится сам. Рамка выдаётся бесплатно, без списания гиперзадок и без проверки условий (постов/цены) — удобно для теста.</p>
+    <div class="admin-add-row">
+      <input type="text" id="giftFrameOwnerName" class="modal-input" placeholder="имя пользователя">
+      <select id="giftFrameSelect" class="modal-input"></select>
+      <button id="giftFrameBtn" class="pick-btn small">Выдать рамку</button>
+    </div>
+    <label class="admin-hint" style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+      <input type="checkbox" id="giftFrameEquipToo" checked style="width:auto;">
+      сразу надеть эту рамку на пользователя (удобно для теста)
+    </label>
+  </section>
+
   <section class="admin-section" id="section-users">
     <h2>👥 Пользователи (авторы)</h2>
     <p class="admin-hint">Список всех owner_code/owner_name, встреченных в фото и видео. Можно переименовать автора везде разом — полезно для старых фото без автора.</p>

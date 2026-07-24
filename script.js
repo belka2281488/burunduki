@@ -41,6 +41,7 @@ const FRAME_DEFS = [
   { id: "belkoslavramka", name: "Белкославрамка", asset: "assets/belkoslavramka.png", type: "buy", price: 15 },
   { id: "patriotramka", name: "Патриотрамка", asset: "assets/patriotramka.png", type: "posts", postsRequired: 10 },
   { id: "capuchinramka", name: "Капуцинрамка", asset: "assets/capuchinramka.png", type: "posts", postsRequired: 25 },
+  { id: "sonkaramka", name: "Сонкарамка", asset: "assets/Sonkaramka.png", type: "views", viewsRequired: 50 },
 ];
 
 /* ---------- Ранги оценки (вместо звёзд) ---------- */
@@ -2827,6 +2828,18 @@ async function getOwnedFrames(ownerCode) {
   return (data || []).map((r) => r.frame_id);
 }
 
+// Суммарные просмотры всех публикаций пользователя (по ленте активности,
+// там уже есть owner_code и kind='view' на каждый уникальный просмотр).
+async function getTotalViewsForOwner(ownerCode) {
+  const { count, error } = await db
+    .from("burunduk_activity")
+    .select("id", { count: "exact", head: true })
+    .eq("owner_code", ownerCode)
+    .eq("kind", "view");
+  if (error) return 0;
+  return count || 0;
+}
+
 async function openFramesModal() {
   if (!currentIdentity || !viewingProfileCode) return;
   framesModal.classList.add("active");
@@ -2836,10 +2849,14 @@ async function openFramesModal() {
     allPhotoRecords.filter((r) => r.owner_code === currentIdentity.code).length +
     allVideoRecords.filter((r) => r.owner_code === currentIdentity.code).length;
 
+  const totalViews = await getTotalViewsForOwner(currentIdentity.code);
+
   let ownedIds = await getOwnedFrames(currentIdentity.code);
 
   const toUnlock = FRAME_DEFS.filter(
-    (f) => f.type === "posts" && postsCount >= f.postsRequired && !ownedIds.includes(f.id)
+    (f) =>
+      (f.type === "posts" && postsCount >= f.postsRequired && !ownedIds.includes(f.id)) ||
+      (f.type === "views" && totalViews >= f.viewsRequired && !ownedIds.includes(f.id))
   );
   if (toUnlock.length) {
     await db.from(FRAMES_TABLE).insert(
@@ -2879,6 +2896,13 @@ async function openFramesModal() {
       priceEl.className = "frame-card-price";
       priceEl.innerHTML = `<img src="assets/giperzadka.png" style="width:14px;height:14px;object-fit:contain;"> ${frame.price}`;
       card.appendChild(priceEl);
+    } else if (frame.type === "views") {
+      const statusEl = document.createElement("div");
+      statusEl.className = "frame-card-status";
+      statusEl.textContent = owned
+        ? "Разблокировано"
+        : `Нужно ${frame.viewsRequired} просмотров (сейчас ${totalViews})`;
+      card.appendChild(statusEl);
     } else {
       const statusEl = document.createElement("div");
       statusEl.className = "frame-card-status";

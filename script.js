@@ -3777,9 +3777,11 @@ async function boot() {
 
   const shared = parseShareHash();
   const wantVideo = shared && shared.kind === "video";
+  const wantText = shared && shared.kind === "text";
 
-  switchTab(wantVideo ? "video" : "photo");
-  if (wantVideo) await loadVideos();
+  switchTab(wantText ? "text" : wantVideo ? "video" : "photo");
+  if (wantText) await loadTexts();
+  else if (wantVideo) await loadVideos();
   else await loadPhotos();
 
   if (shared) openSharedFromHash();

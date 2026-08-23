@@ -169,8 +169,10 @@ const profileViewsCount = document.getElementById("profileViewsCount");
 const profilePostsCount = document.getElementById("profilePostsCount");
 const profileTabPhoto = document.getElementById("profileTabPhoto");
 const profileTabVideo = document.getElementById("profileTabVideo");
+const profileTabText = document.getElementById("profileTabText");
 const profileGalleryPhoto = document.getElementById("profileGalleryPhoto");
 const profileGalleryVideo = document.getElementById("profileGalleryVideo");
+const profileGalleryText = document.getElementById("profileGalleryText");
 const profileEmpty = document.getElementById("profileEmpty");
 const editProfileModal = document.getElementById("editProfileModal");
 const editProfileName = document.getElementById("editProfileName");
@@ -2089,24 +2091,13 @@ function getTextPlainContent(record) {
 }
 
 const textShareBtn = document.getElementById("textShareBtn");
-if (textShareBtn) textShareBtn.addEventListener("click", async (e) => {
+if (textShareBtn) textShareBtn.addEventListener("click", (e) => {
   e.stopPropagation();
   if (!currentTextRecord) return;
-  const text = getTextPlainContent(currentTextRecord);
-  const title = currentTextRecord.title || "Текст";
-  if (navigator.share) {
-    try {
-      await navigator.share({ title, text });
-    } catch (err) {
-      if (err.name !== "AbortError") showToast("Не удалось поделиться");
-    }
-  } else {
-    // fallback — копируем
-    try {
-      await navigator.clipboard.writeText(text);
-      showToast("Текст скопирован в буфер обмена");
-    } catch { showToast("Поделиться не поддерживается"); }
-  }
+  const slug = slugify(currentTextRecord.title || "текст");
+  const shortId = currentTextRecord.id.replace(/-/g, "").slice(0, 8);
+  const url = `${location.origin}${location.pathname}#text-${slug}--${shortId}`;
+  copyTextToClipboard(url);
 });
 
 const textCopyBtn = document.getElementById("textCopyBtn");
@@ -2221,7 +2212,8 @@ if (textConfirm) textConfirm.addEventListener("click", async () => {
   } else {
     const { error } = await db.from(TEXT_TABLE).insert(payload);
     if (error) { showToast("Ошибка: " + error.message); return; }
-    showToast("Текст добавлен!");
+    showToast("Текст добавлен! +3 гиперзадки 🐿️");
+    creditGigersForPublish("text");
   }
 
   textModal.classList.remove("active");
@@ -2622,7 +2614,7 @@ async function refreshMyGigerBalance() {
 
 async function creditGigersForPublish(kind) {
   if (!currentIdentity) return;
-  const delta = kind === "video" ? 2 : 1;
+  const delta = kind === "video" ? 2 : kind === "text" ? 3 : 1;
   await db.rpc("giger_add", {
     p_code: currentIdentity.code,
     p_name: currentIdentity.name,
@@ -2768,7 +2760,7 @@ videoShareBtn.addEventListener("click", () => {
 
 function parseShareHash() {
   const hash = decodeURIComponent(location.hash.slice(1));
-  const m = hash.match(/^(photo|video)-.*--([0-9a-f]{4,32})$/i);
+  const m = hash.match(/^(photo|video|text)-.*--([0-9a-f]{4,32})$/i);
   if (!m) return null;
   return { kind: m[1], idFrag: m[2].toLowerCase() };
 }
@@ -2780,16 +2772,19 @@ function findRecordByIdFrag(list, idFrag) {
 function openSharedFromHash() {
   const shared = parseShareHash();
   if (!shared) return;
-  const list = shared.kind === "photo" ? allPhotoRecords : allVideoRecords;
+  const list = shared.kind === "photo" ? allPhotoRecords : shared.kind === "video" ? allVideoRecords : allTextRecords;
   const record = findRecordByIdFrag(list, shared.idFrag);
   if (!record) {
-    showToast("Не нашёл бурундука по этой ссылке 🐿️");
+    showToast("Не нашёл запись по этой ссылке 🐿️");
     return;
   }
   if (shared.kind === "photo") {
     openLightbox(record, publicUrlFor(record.storage_path));
-  } else {
+  } else if (shared.kind === "video") {
     openVideoLightbox(record);
+  } else {
+    switchTab("text");
+    openTextLightbox(record, allTextRecords.indexOf(record));
   }
 }
 
@@ -3241,16 +3236,55 @@ profileBackBtn.addEventListener("click", () => {
 function switchProfileTab(kind) {
   profileTabPhoto.classList.toggle("active", kind === "photo");
   profileTabVideo.classList.toggle("active", kind === "video");
+  if (profileTabText) profileTabText.classList.toggle("active", kind === "text");
   profileGalleryPhoto.classList.toggle("hidden", kind !== "photo");
   profileGalleryVideo.classList.toggle("hidden", kind !== "video");
+  if (profileGalleryText) profileGalleryText.classList.toggle("hidden", kind !== "text");
   renderProfileGallery(kind);
 }
 
 profileTabPhoto.addEventListener("click", () => switchProfileTab("photo"));
 profileTabVideo.addEventListener("click", () => switchProfileTab("video"));
+if (profileTabText) profileTabText.addEventListener("click", () => switchProfileTab("text"));
 
 function renderProfileGallery(kind) {
   if (!viewingProfileCode) return;
+
+  if (kind === "text") {
+    const el = profileGalleryText;
+    if (!el) return;
+    const records = allTextRecords
+      .filter(r => r.owner_code === viewingProfileCode)
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    profileEmpty.classList.toggle("hidden", records.length > 0);
+    el.innerHTML = "";
+    records.forEach((record, idx) => {
+      const card = document.createElement("div");
+      card.className = "text-card";
+      const previewText = record.body ? record.body.replace(/<[^>]*>/g, "").trim().slice(0, 120) : "";
+      card.innerHTML = `
+        <div class="text-card-cover">
+          <div class="text-card-cover-title">${escapeHtml(record.title || "Без названия")}</div>
+          ${record.followers_only ? `<span class="followers-only-badge" title="Только для подписчиков">🔒</span>` : ""}
+        </div>
+        <div class="text-card-body">
+          ${previewText ? `<div class="text-card-preview">${escapeHtml(previewText)}</div>` : ""}
+          <div class="text-card-ellipsis">читать далее...</div>
+          <div class="text-card-meta">
+            <span>${formatPublishDate(record.created_at)}</span>
+            ${record.gdoc_url ? `<span class="text-card-gdoc-badge">📄 Google Doc</span>` : ""}
+          </div>
+        </div>
+      `;
+      card.addEventListener("click", () => {
+        const galleryIdx = allTextRecords.indexOf(record);
+        openTextLightbox(record, galleryIdx === -1 ? idx : galleryIdx);
+      });
+      el.appendChild(card);
+    });
+    return;
+  }
+
   const source = kind === "photo" ? allPhotoRecords : allVideoRecords;
   const records = source
     .filter((r) => r.owner_code === viewingProfileCode)
@@ -3325,7 +3359,8 @@ async function refreshProfileStats(ownerCode) {
 
   const postsCount =
     allPhotoRecords.filter((r) => r.owner_code === ownerCode).length +
-    allVideoRecords.filter((r) => r.owner_code === ownerCode).length;
+    allVideoRecords.filter((r) => r.owner_code === ownerCode).length +
+    allTextRecords.filter((r) => r.owner_code === ownerCode).length;
   profilePostsCount.textContent = postsCount;
 }
 

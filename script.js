@@ -2267,7 +2267,9 @@ async function loadTextComments(textId) {
     `;
     listEl.appendChild(div);
   });
-}
+
+  // После рендера комментариев возвращаемся наверх — иначе браузер прыгает вниз
+  if (textLightbox) textLightbox.scrollTop = 0;
 
 const textCommentSubmit = document.getElementById("textCommentSubmit");
 const textCommentInput = document.getElementById("textCommentInput");

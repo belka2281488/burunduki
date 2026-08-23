@@ -2105,8 +2105,18 @@ main {
   background: rgba(30,15,5,0.72);
   z-index: 1000;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   padding: 24px 16px;
   box-sizing: border-box;
+}
+
+/* Кнопка закрыть текстового лайтбокса — всегда поверх, не уезжает при скролле */
+.text-lightbox > .lightbox-close {
+  position: fixed;
+  top: 14px;
+  right: 18px;
+  z-index: 1010;
 }
 
 .text-lightbox.open {
@@ -2265,6 +2275,20 @@ main {
 @media (max-width: 600px) {
   .text-lightbox-main {
     padding: 18px 14px;
+  }
+
+  /* Фото/видео лайтбокс — не даём странице под ним скроллиться */
+  .lightbox {
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Кнопка закрыть фото/видео — фиксируем чтобы не уезжала */
+  .lightbox > .lightbox-close {
+    position: fixed;
+    top: 10px;
+    right: 14px;
+    z-index: 1010;
   }
 }
 

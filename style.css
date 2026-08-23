@@ -2267,3 +2267,131 @@ main {
     padding: 18px 14px;
   }
 }
+
+/* ==================================================================
+   МОБИЛЬНОЕ ОФОРМЛЕНИЕ (≤ 600px) — десктоп не затронут
+   ================================================================== */
+@media (max-width: 600px) {
+
+  /* --- Хедер: компактнее --- */
+  .header {
+    padding: 20px 16px 12px;
+  }
+  .header h1 {
+    font-size: 1.35rem;
+  }
+  .subtitle {
+    font-size: 0.8rem;
+    margin-top: 3px;
+  }
+  .who-am-i {
+    margin-top: 6px;
+    font-size: 0.78rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 4px 8px;
+  }
+
+  /* --- Main padding --- */
+  main {
+    padding: 12px;
+  }
+
+  /* --- Табы вкладок: меньше padding --- */
+  .tabs {
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+  .tab-btn {
+    padding: 7px 14px;
+    font-size: 0.88rem;
+  }
+
+  /* --- Поиск на всю ширину --- */
+  .search-wrap {
+    margin-bottom: 10px;
+  }
+  .search-input {
+    max-width: none;
+    flex: 1;
+    height: 40px;
+    font-size: 0.9rem;
+  }
+
+  /* --- Категории: мельче таблетки --- */
+  .category-tab {
+    padding: 5px 11px;
+    font-size: 0.8rem;
+  }
+  .category-tabs {
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+
+  /* --- Кнопка добавить: компактнее --- */
+  .pick-wrap {
+    padding: 6px 0 18px;
+  }
+  .pick-btn {
+    padding: 11px 22px;
+    font-size: 0.95rem;
+  }
+
+  /* --- ГАЛЕРЕЯ: 2 колонки --- */
+  .gallery {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  /* --- Карточка фото: меньше картинка и текст --- */
+  .gallery .card img {
+    height: 120px;
+  }
+  .card .name {
+    font-size: 0.78rem;
+    padding: 7px 8px;
+  }
+
+  /* --- Текстовая галерея: тоже 2 колонки --- */
+  .gallery-text {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .text-card-cover {
+    height: 80px;
+  }
+  .text-card-body {
+    padding: 8px;
+  }
+  .text-card-preview {
+    font-size: 0.78rem;
+    -webkit-line-clamp: 2;
+  }
+  .text-card-meta {
+    font-size: 0.72rem;
+    margin-top: 6px;
+  }
+
+  /* --- Бейджи на карточках: чуть меньше --- */
+  .followers-only-badge {
+    width: 20px;
+    height: 20px;
+    font-size: 0.72rem;
+    top: 5px;
+    right: 5px;
+  }
+  .kurymdyk-badge {
+    padding: 3px 7px;
+    font-size: 0.72rem;
+    top: 5px;
+    left: 5px;
+  }
+
+  /* --- Статус-строка --- */
+  #status {
+    font-size: 0.82rem;
+    margin-top: 6px;
+  }
+}

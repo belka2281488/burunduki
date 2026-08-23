@@ -26,6 +26,11 @@
     <h2>📁 Все разделы</h2>
     <div class="admin-add-row">
       <input type="text" id="newCategoryDirectInput" class="modal-input" placeholder="название нового раздела (сразу одобренный)">
+      <div class="category-tabs-check" title="Где показывать раздел">
+        <label><input type="checkbox" name="catTab" value="photo" checked> 🖼️ Фото</label>
+        <label><input type="checkbox" name="catTab" value="video" checked> 🎬 Видео</label>
+        <label><input type="checkbox" name="catTab" value="text" checked> 📝 Тексты</label>
+      </div>
       <button id="addCategoryDirectBtn" class="pick-btn small">Добавить раздел</button>
     </div>
     <div id="categoriesList" class="admin-list">Загружаю...</div>

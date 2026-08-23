@@ -437,6 +437,7 @@ function switchTab(tab) {
   galleryPhoto.classList.toggle("hidden", tab !== "photo");
   if (galleryText) galleryText.classList.toggle("hidden", tab !== "text");
 
+  renderCategoryTabs();
   if (tab === "video") loadVideos();
   else if (tab === "text") loadTexts();
   else loadPhotos();
@@ -556,6 +557,20 @@ function renderCategoryTabs() {
   if (!categoryTabsEl) return;
   categoryTabsEl.innerHTML = "";
 
+  // Показываем только разделы, разрешённые для текущей вкладки
+  const visibleCats = allCategories.filter((cat) => {
+    if (!cat.allowed_tabs || cat.allowed_tabs.length === 0) return true;
+    return cat.allowed_tabs.includes(currentTab);
+  });
+
+  // Если для текущей вкладки нет ни одного раздела — скрываем блок категорий
+  categoryTabsEl.style.display = visibleCats.length === 0 ? "none" : "";
+
+  // Если текущий фильтр не подходит для новой вкладки — сброс
+  if (currentCategoryFilter !== "all" && !visibleCats.find(c => c.id === currentCategoryFilter)) {
+    currentCategoryFilter = "all";
+  }
+
   const allBtn = document.createElement("button");
   allBtn.className = "category-tab" + (currentCategoryFilter === "all" ? " active" : "");
   allBtn.textContent = "Все разделы";
@@ -566,7 +581,7 @@ function renderCategoryTabs() {
   });
   categoryTabsEl.appendChild(allBtn);
 
-  allCategories.forEach((cat) => {
+  visibleCats.forEach((cat) => {
     const btn = document.createElement("button");
     btn.className = "category-tab" + (currentCategoryFilter === cat.id ? " active" : "");
     btn.textContent = cat.name;

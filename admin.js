@@ -150,6 +150,9 @@ function renderAllCategories() {
   allCategories.forEach((cat) => {
     const photoCount = allPhotos.filter(p => p.category_id === cat.id).length;
     const videoCount = allVideos.filter(v => v.category_id === cat.id).length;
+    const tabs = (!cat.allowed_tabs || cat.allowed_tabs.length === 0)
+      ? "все типы"
+      : cat.allowed_tabs.map(t => t === "photo" ? "🖼️ Фото" : t === "video" ? "🎬 Видео" : "📝 Тексты").join(", ");
     const row = document.createElement("div");
     row.className = "admin-row";
     row.innerHTML = `
@@ -158,14 +161,16 @@ function renderAllCategories() {
           ${escapeHtml(cat.name)}
           ${cat.status !== "approved" ? `<span class="badge-pending">${cat.status === "pending" ? "на рассмотрении" : "отклонён"}</span>` : ""}
         </div>
-        <div class="admin-row-sub">фото: ${photoCount} · видео: ${videoCount}</div>
+        <div class="admin-row-sub">фото: ${photoCount} · видео: ${videoCount} · показывается в: ${tabs}</div>
       </div>
       <div class="admin-row-actions">
         <button class="tool-btn" data-rename>Переименовать</button>
+        <button class="tool-btn" data-edittabs>Типы</button>
         <button class="tool-btn danger" data-delete>Удалить раздел</button>
       </div>
     `;
     row.querySelector("[data-rename]").addEventListener("click", () => renameCategory(cat));
+    row.querySelector("[data-edittabs]").addEventListener("click", () => editCategoryTabs(cat));
     row.querySelector("[data-delete]").addEventListener("click", () => deleteCategory(cat));
     el.appendChild(row);
   });
@@ -185,6 +190,42 @@ async function renameCategory(cat) {
     return;
   }
   showToast("Раздел переименован");
+  await loadCategories();
+}
+
+async function editCategoryTabs(cat) {
+  const current = (!cat.allowed_tabs || cat.allowed_tabs.length === 0)
+    ? ["photo", "video", "text"]
+    : cat.allowed_tabs;
+
+  // Простой диалог через confirm-цепочку, понятный и без модалок
+  const wantPhoto = confirm(`Раздел «${cat.name}»\n\nПоказывать в 🖼️ ФОТО?\n(Сейчас: ${current.includes("photo") ? "да" : "нет"})`);
+  const wantVideo = confirm(`Раздел «${cat.name}»\n\nПоказывать в 🎬 ВИДЕО?\n(Сейчас: ${current.includes("video") ? "да" : "нет"})`);
+  const wantText  = confirm(`Раздел «${cat.name}»\n\nПоказывать в 📝 ТЕКСТАХ?\n(Сейчас: ${current.includes("text") ? "да" : "нет"})`);
+
+  const tabs = [];
+  if (wantPhoto) tabs.push("photo");
+  if (wantVideo) tabs.push("video");
+  if (wantText)  tabs.push("text");
+
+  if (tabs.length === 0) {
+    showToast("Нужно выбрать хотя бы один тип");
+    return;
+  }
+
+  // Если выбраны все три — сохраняем null (= без ограничений)
+  const allowed_tabs = tabs.length === 3 ? null : tabs;
+
+  const { error } = await db
+    .from(CATEGORY_TABLE)
+    .update({ allowed_tabs })
+    .eq("id", cat.id);
+
+  if (error) {
+    showToast("Не удалось сохранить: " + error.message);
+    return;
+  }
+  showToast("Типы раздела обновлены ✅");
   await loadCategories();
 }
 
@@ -222,7 +263,9 @@ document.getElementById("addCategoryDirectBtn").addEventListener("click", async 
     showToast("Введи название раздела");
     return;
   }
-  const { error } = await db.from(CATEGORY_TABLE).insert({ name, status: "approved" });
+  const checkedTabs = Array.from(document.querySelectorAll("input[name='catTab']:checked")).map(el => el.value);
+  const allowed_tabs = checkedTabs.length === 3 || checkedTabs.length === 0 ? null : checkedTabs;
+  const { error } = await db.from(CATEGORY_TABLE).insert({ name, status: "approved", allowed_tabs });
   if (error) {
     showToast("Не удалось добавить: " + error.message);
     return;

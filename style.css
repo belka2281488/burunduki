@@ -2106,7 +2106,6 @@ main {
   z-index: 1000;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
   padding: 24px 16px;
   box-sizing: border-box;
 }
@@ -2275,12 +2274,6 @@ main {
 @media (max-width: 600px) {
   .text-lightbox-main {
     padding: 18px 14px;
-  }
-
-  /* Фото/видео лайтбокс — не даём странице под ним скроллиться */
-  .lightbox {
-    overscroll-behavior: contain;
-    -webkit-overflow-scrolling: touch;
   }
 
   /* Кнопка закрыть фото/видео — фиксируем чтобы не уезжала */

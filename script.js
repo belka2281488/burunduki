@@ -2044,6 +2044,7 @@ async function openTextLightbox(record, index) {
   if (textLightboxTools) textLightboxTools.classList.toggle("hidden", !canEdit);
 
   textLightbox.classList.add("open");
+  textLightbox.scrollTop = 0;
   document.body.style.overflow = "hidden";
 
   // Load comments for text

@@ -36,6 +36,7 @@
   <div class="tabs">
     <button id="tabPhoto" class="tab-btn active">🖼️ Фото</button>
     <button id="tabVideo" class="tab-btn">🎬 Видео</button>
+    <button id="tabText" class="tab-btn">📝 Тексты</button>
   </div>
 
   <div class="search-wrap">
@@ -75,11 +76,13 @@
   <div class="pick-wrap">
     <button id="uploadPhotoBtn" class="pick-btn">➕ Добавить бурундука</button>
     <button id="uploadVideoBtn" class="pick-btn hidden">➕ Добавить видео</button>
+    <button id="uploadTextBtn" class="pick-btn hidden">📝 Добавить текст</button>
     <div id="status" class="status">Загружаю галерею...</div>
   </div>
 
   <div id="galleryPhoto" class="gallery"></div>
   <div id="galleryVideo" class="gallery hidden"></div>
+  <div id="galleryText" class="gallery gallery-text hidden"></div>
 </main>
 
 <!-- Страница профиля автора -->
@@ -468,6 +471,109 @@
 
     <div class="view-counter" id="videoViewCounter"></div>
     <div class="live-viewers hidden" id="videoLiveViewers"></div>
+  </div>
+</div>
+
+<!-- Модалка добавления/редактирования текстового поста -->
+<div id="textModal" class="modal">
+  <div class="modal-box modal-box-wide">
+    <h3 id="textModalTitle">Новый текст 📝</h3>
+
+    <label class="modal-label">Заголовок</label>
+    <input type="text" id="textTitle" class="modal-input" placeholder="например: История одного бурундука">
+
+    <label class="modal-label">Текст</label>
+    <div class="text-editor-toolbar">
+      <button type="button" class="text-tool-btn" data-cmd="bold" title="Жирный"><b>Ж</b></button>
+      <button type="button" class="text-tool-btn" data-cmd="italic" title="Курсив"><i>К</i></button>
+      <button type="button" class="text-tool-btn" data-cmd="underline" title="Подчёркнутый"><u>П</u></button>
+      <button type="button" class="text-tool-btn" data-cmd="strikethrough" title="Зачёркнутый"><s>З</s></button>
+      <span class="text-tool-sep"></span>
+      <button type="button" class="text-tool-btn" data-cmd="insertUnorderedList" title="Список">☰</button>
+      <button type="button" class="text-tool-btn" data-cmd="insertOrderedList" title="Нум. список">1.</button>
+    </div>
+    <div id="textContent" class="text-editor-area" contenteditable="true" placeholder="Пиши тут свой текст..."></div>
+
+    <label class="modal-label" style="margin-top:12px;">Ссылка на Google Документ (необязательно)</label>
+    <input type="text" id="textGdocUrl" class="modal-input" placeholder="https://docs.google.com/document/d/...">
+    <div class="modal-hint">Содержимое документа будет автоматически подгружаться раз в час. Документ должен быть открыт для просмотра всем.</div>
+
+    <label class="modal-label">Раздел</label>
+    <select id="textCategory" class="modal-input"></select>
+    <div id="newTextCategoryWrap" class="hidden">
+      <input type="text" id="newTextCategoryName" class="modal-input" placeholder="название нового раздела">
+      <div class="modal-hint">Появится у всех только после одобрения в админ-панельке.</div>
+    </div>
+
+    <label class="followers-only-toggle">
+      <input type="checkbox" id="textFollowersOnly">
+      <span>🔒 Только для подписчиков</span>
+    </label>
+
+    <div class="modal-actions">
+      <button id="textCancel" class="tool-btn">Отмена</button>
+      <button id="textConfirm" class="pick-btn small">Добавить</button>
+    </div>
+  </div>
+</div>
+
+<!-- Лайтбокс для текстового поста -->
+<div id="textLightbox" class="lightbox text-lightbox">
+  <button class="lightbox-close" id="textLightboxClose">&times;</button>
+
+  <div class="text-lightbox-main">
+    <div class="text-lightbox-header">
+      <div class="lightbox-name" id="textLightboxTitle"></div>
+      <div class="lightbox-author owner-tag-link" id="textLightboxAuthor"></div>
+      <div class="lightbox-date" id="textLightboxDate"></div>
+    </div>
+
+    <div id="textLightboxGdocBanner" class="gdoc-banner hidden">
+      <span>📄 Связан с Google Документом</span>
+      <a id="textLightboxGdocLink" href="#" target="_blank" rel="noopener" class="link-btn">Открыть оригинал ↗</a>
+      <span id="textLightboxGdocUpdated" class="gdoc-updated-label"></span>
+    </div>
+
+    <div id="textLightboxBody" class="text-lightbox-body"></div>
+
+    <div class="text-lightbox-actions">
+      <button id="textLightboxPrevBtn" class="tool-btn nav-btn hidden">← Пред.</button>
+      <button id="textLightboxNextBtn" class="tool-btn nav-btn hidden">След. →</button>
+    </div>
+
+    <div class="text-lightbox-share-row">
+      <button id="textShareBtn" class="tool-btn tl-share-btn" title="Поделиться">📤 Поделиться</button>
+      <button id="textCopyBtn" class="tool-btn tl-share-btn" title="Скопировать текст">📋 Копировать</button>
+      <button id="textDownloadBtn" class="tool-btn tl-share-btn" title="Скачать .txt">💾 Скачать .txt</button>
+      <span class="tl-zoom-group">
+        <button id="textZoomOutBtn" class="tool-btn tl-zoom-btn" title="Уменьшить шрифт">А−</button>
+        <button id="textZoomInBtn" class="tool-btn tl-zoom-btn" title="Увеличить шрифт">А+</button>
+      </span>
+    </div>
+
+    <div class="text-lightbox-tools hidden" id="textLightboxTools">
+      <button id="textLightboxEditBtn" class="tool-btn">✏️ Редактировать</button>
+      <button id="textLightboxDeleteBtn" class="tool-btn danger">🗑 Удалить</button>
+    </div>
+
+    <div class="text-lightbox-comments">
+      <div class="comments-section">
+        <div class="comments-list" id="textCommentList"></div>
+        <div class="comment-reply-hint hidden" id="textReplyHint">
+          Ответ для <b id="textReplyHintName"></b>
+          <button id="textReplyCancelBtn" type="button" class="comment-reply-cancel" title="Отменить ответ">✕</button>
+        </div>
+        <textarea id="textCommentInput" class="modal-input modal-textarea rating-comment-input" placeholder="Написать комментарий..."></textarea>
+        <div class="giger-gift-box" id="textGigerBox">
+          <label class="giger-gift-toggle">
+            <input type="checkbox" id="textGigerCheckbox">
+            <img src="assets/giperzadka.png" class="giger-gift-icon" alt="гиперзадка">
+            <span>Подарить гиперзадку автору</span>
+          </label>
+        </div>
+        <button id="textCommentSubmit" class="pick-btn small">Отправить</button>
+      </div>
+    </div>
   </div>
 </div>
 

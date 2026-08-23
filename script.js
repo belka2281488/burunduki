@@ -1,5 +1,6 @@
 const PHOTO_TABLE = "burunduki";
 const VIDEO_TABLE = "burunduki_videos";
+const TEXT_TABLE = "burunduk_texts";
 const CATEGORY_TABLE = "burunduk_categories";
 
 let allCategories = [];
@@ -60,10 +61,13 @@ const statusEl = document.getElementById("status");
 const toast = document.getElementById("toast");
 const tabVideo = document.getElementById("tabVideo");
 const tabPhoto = document.getElementById("tabPhoto");
+const tabText = document.getElementById("tabText");
 const galleryPhoto = document.getElementById("galleryPhoto");
 const galleryVideo = document.getElementById("galleryVideo");
+const galleryText = document.getElementById("galleryText");
 const uploadPhotoBtn = document.getElementById("uploadPhotoBtn");
 const uploadVideoBtn = document.getElementById("uploadVideoBtn");
+const uploadTextBtn = document.getElementById("uploadTextBtn");
 const deleteModal = document.getElementById("deleteModal");
 const deleteCancel = document.getElementById("deleteCancel");
 const deleteConfirm = document.getElementById("deleteConfirm");
@@ -408,6 +412,7 @@ function initSupabase() {
     statusEl.innerHTML = `Настрой config.js — вставь свои SUPABASE_URL и SUPABASE_ANON_KEY (инструкция в README.txt)`;
     uploadPhotoBtn.disabled = true;
     uploadVideoBtn.disabled = true;
+    if (uploadTextBtn) uploadTextBtn.disabled = true;
     return false;
   }
   db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -422,23 +427,33 @@ function switchTab(tab) {
   searchInput.value = "";
   tabVideo.classList.toggle("active", tab === "video");
   tabPhoto.classList.toggle("active", tab === "photo");
+  if (tabText) tabText.classList.toggle("active", tab === "text");
   uploadVideoBtn.classList.toggle("hidden", tab !== "video");
   uploadPhotoBtn.classList.toggle("hidden", tab !== "photo");
+  if (uploadTextBtn) uploadTextBtn.classList.toggle("hidden", tab !== "text");
   galleryVideo.classList.toggle("hidden", tab !== "video");
   galleryPhoto.classList.toggle("hidden", tab !== "photo");
+  if (galleryText) galleryText.classList.toggle("hidden", tab !== "text");
 
   if (tab === "video") loadVideos();
+  else if (tab === "text") loadTexts();
   else loadPhotos();
 }
 
 tabVideo.addEventListener("click", () => switchTab("video"));
 tabPhoto.addEventListener("click", () => switchTab("photo"));
+if (tabText) tabText.addEventListener("click", () => switchTab("text"));
 
 /* ==================================================================
    ПОИСК ПО ИМЕНИ
    ================================================================== */
 function applySearch() {
   const query = searchInput.value.trim().toLowerCase();
+
+  if (currentTab === "text") {
+    applyTextSearch();
+    return;
+  }
 
   if (currentTab === "photo") {
     const approvedCategoryIds = new Set(allCategories.map(c => c.id));
@@ -1768,6 +1783,502 @@ videoDeleteBtn.addEventListener("click", () => {
   if (!currentVideoRecord) return;
   deleteModal.dataset.kind = "video";
   deleteModal.classList.add("active");
+});
+
+/* ==================================================================
+   ТЕКСТОВЫЕ ПОСТЫ
+   ================================================================== */
+
+let allTextRecords = [];
+let currentTextRecord = null;
+let currentTextList = [];
+let currentTextIndex = -1;
+let editingTextRecord = null;
+
+const NEW_TEXT_CATEGORY_VALUE = "__new__";
+
+// DOM-ссылки для текстов
+const textModal = document.getElementById("textModal");
+const textModalTitle = document.getElementById("textModalTitle");
+const textTitle = document.getElementById("textTitle");
+const textContent = document.getElementById("textContent");
+const textGdocUrl = document.getElementById("textGdocUrl");
+const textCategory = document.getElementById("textCategory");
+const textFollowersOnly = document.getElementById("textFollowersOnly");
+const textCancel = document.getElementById("textCancel");
+const textConfirm = document.getElementById("textConfirm");
+const newTextCategoryWrap = document.getElementById("newTextCategoryWrap");
+const newTextCategoryName = document.getElementById("newTextCategoryName");
+
+const textLightbox = document.getElementById("textLightbox");
+const textLightboxTitle = document.getElementById("textLightboxTitle");
+const textLightboxAuthor = document.getElementById("textLightboxAuthor");
+const textLightboxDate = document.getElementById("textLightboxDate");
+const textLightboxBody = document.getElementById("textLightboxBody");
+const textLightboxClose = document.getElementById("textLightboxClose");
+const textLightboxPrevBtn = document.getElementById("textLightboxPrevBtn");
+const textLightboxNextBtn = document.getElementById("textLightboxNextBtn");
+const textLightboxTools = document.getElementById("textLightboxTools");
+const textLightboxEditBtn = document.getElementById("textLightboxEditBtn");
+const textLightboxDeleteBtn = document.getElementById("textLightboxDeleteBtn");
+const textLightboxGdocBanner = document.getElementById("textLightboxGdocBanner");
+const textLightboxGdocLink = document.getElementById("textLightboxGdocLink");
+const textLightboxGdocUpdated = document.getElementById("textLightboxGdocUpdated");
+
+// Editor toolbar
+if (textContent) {
+  document.querySelectorAll(".text-tool-btn").forEach(btn => {
+    btn.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      const cmd = btn.dataset.cmd;
+      document.execCommand(cmd, false, null);
+      textContent.focus();
+    });
+  });
+}
+
+// Populate category select for text modal
+function fillTextCategorySelect() {
+  if (!textCategory) return;
+  textCategory.innerHTML = `<option value="">— без раздела —</option>`;
+  allCategories.forEach(cat => {
+    const opt = document.createElement("option");
+    opt.value = cat.id;
+    opt.textContent = cat.name;
+    textCategory.appendChild(opt);
+  });
+  const newOpt = document.createElement("option");
+  newOpt.value = NEW_TEXT_CATEGORY_VALUE;
+  newOpt.textContent = "➕ Создать новый раздел";
+  textCategory.appendChild(newOpt);
+}
+
+if (textCategory) {
+  textCategory.addEventListener("change", () => {
+    if (newTextCategoryWrap) newTextCategoryWrap.classList.toggle("hidden", textCategory.value !== NEW_TEXT_CATEGORY_VALUE);
+  });
+}
+
+async function loadTexts() {
+  statusEl.textContent = "Загружаю тексты...";
+  const { data, error } = await db
+    .from(TEXT_TABLE)
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    statusEl.textContent = "Ошибка загрузки текстов: " + error.message +
+      (error.message.includes("does not exist") ? " (выполни migration_add_texts.sql в Supabase)" : "");
+    return;
+  }
+
+  if (!mySubscriptions) await loadMySubscriptions();
+  allTextRecords = (data || []).filter(canSeeRecord);
+  fillAuthorFilter();
+  await preloadProfilesFor(allTextRecords);
+  applyTextSearch();
+}
+
+function applyTextSearch() {
+  const query = searchInput.value.trim().toLowerCase();
+  const approvedCategoryIds = new Set(allCategories.map(c => c.id));
+  let base = allTextRecords.filter(r => !r.category_id || approvedCategoryIds.has(r.category_id));
+  if (currentCategoryFilter !== "all") base = base.filter(r => r.category_id === currentCategoryFilter);
+  if (currentAuthorFilter !== "all") base = base.filter(r => r.owner_code === currentAuthorFilter);
+  if (query) base = base.filter(r => {
+    const title = (r.title || "").toLowerCase();
+    const body = (r.body || "").toLowerCase();
+    const name = displayNameFor(r.owner_code, r.owner_name).toLowerCase();
+    return title.includes(query) || body.includes(query) || name.includes(query);
+  });
+  base = applySort(base, "text");
+  renderTextGallery(base);
+}
+
+function renderTextGallery(records) {
+  currentTextList = records;
+  galleryText.innerHTML = "";
+  if (!records.length) {
+    statusEl.textContent = "Пока нет текстовых постов — добавь первый!";
+    return;
+  }
+  statusEl.textContent = "";
+  records.forEach((record, idx) => {
+    const card = document.createElement("div");
+    card.className = "text-card";
+
+    const previewText = record.body ? record.body.replace(/<[^>]*>/g, "").trim().slice(0, 120) : "";
+    const hasGdoc = !!record.gdoc_url;
+    const hasMore = record.body && record.body.replace(/<[^>]*>/g, "").trim().length > 120;
+    const authorName = displayNameFor(record.owner_code, record.owner_name);
+
+    card.innerHTML = `
+      <div class="text-card-cover">
+        <div class="text-card-cover-title">${escapeHtml(record.title || "Без названия")}</div>
+        ${record.followers_only ? `<span class="followers-only-badge" title="Только для подписчиков">🔒</span>` : ""}
+      </div>
+      <div class="text-card-body">
+        ${previewText ? `<div class="text-card-preview">${escapeHtml(previewText)}</div>` : ""}
+        ${(previewText || hasGdoc) ? `<div class="text-card-ellipsis">читать далее...</div>` : ""}
+        <div class="text-card-meta">
+          <span class="owner-tag owner-tag-link" data-owner="${record.owner_code || ""}">от ${escapeHtml(authorName)}</span>
+          <span>${formatPublishDate(record.created_at)}</span>
+          ${hasGdoc ? `<span class="text-card-gdoc-badge">📄 Google Doc</span>` : ""}
+        </div>
+      </div>
+    `;
+
+    card.addEventListener("click", () => openTextLightbox(record, idx));
+    const ownerTag = card.querySelector(".owner-tag-link");
+    if (ownerTag) {
+      ownerTag.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openProfile(record.owner_code);
+      });
+    }
+    galleryText.appendChild(card);
+  });
+}
+
+// Fetch Google Doc content via published export URL
+async function fetchGdocContent(gdocUrl) {
+  try {
+    // Extract doc ID and build export URL
+    const match = gdocUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    if (!match) return null;
+    const docId = match[1];
+    const exportUrl = `https://docs.google.com/document/d/${docId}/export?format=html`;
+    const resp = await fetch(exportUrl, { cache: "no-cache" });
+    if (!resp.ok) return null;
+    const html = await resp.text();
+    // Parse and sanitize
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+    const body = doc.querySelector("body");
+    if (!body) return null;
+    // Remove Google's style/script noise, keep just content
+    body.querySelectorAll("script,style,link,meta").forEach(el => el.remove());
+    return body.innerHTML;
+  } catch { return null; }
+}
+
+async function openTextLightbox(record, index) {
+  try {
+  currentTextRecord = record;
+  currentTextIndex = index;
+
+  if (!textLightbox) return;
+  if (textLightboxTitle) textLightboxTitle.innerHTML = escapeHtml(record.title || "Без названия");
+  if (textLightboxDate) textLightboxDate.textContent = formatPublishDate(record.created_at);
+
+  if (record.owner_code) {
+    textLightboxAuthor.innerHTML = `<span class="online-dot" data-online-for="${record.owner_code}"></span>от ${escapeHtml(displayNameFor(record.owner_code, record.owner_name))}`;
+    textLightboxAuthor.dataset.owner = record.owner_code;
+    textLightboxAuthor.style.display = "block";
+    textLightboxAuthor.addEventListener("click", () => openProfile(record.owner_code));
+  } else {
+    textLightboxAuthor.style.display = "none";
+  }
+
+  // Show body — prefer cached body immediately, refresh from gdoc if >1 hour old
+  let bodyHtml = record.body || "";
+
+  if (record.gdoc_url) {
+    textLightboxGdocBanner.classList.remove("hidden");
+    textLightboxGdocLink.href = record.gdoc_url;
+
+    const lastRefresh = record.gdoc_refreshed_at ? new Date(record.gdoc_refreshed_at) : null;
+    const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const needsRefresh = !lastRefresh || lastRefresh < hourAgo;
+
+    if (needsRefresh) {
+      textLightboxGdocUpdated.textContent = "Обновляю из Google Doc...";
+      // Show cached body first, then update asynchronously
+      textLightboxBody.innerHTML = bodyHtml;
+      fetchGdocContent(record.gdoc_url).then(async gdocHtml => {
+        if (gdocHtml) {
+          textLightboxBody.innerHTML = gdocHtml;
+          textLightboxGdocUpdated.textContent = "Обновлено только что";
+          await db.from(TEXT_TABLE).update({ body: gdocHtml, gdoc_refreshed_at: new Date().toISOString() }).eq("id", record.id);
+          // update local record so next open uses fresh cache
+          record.body = gdocHtml;
+          record.gdoc_refreshed_at = new Date().toISOString();
+        } else {
+          textLightboxGdocUpdated.textContent = lastRefresh ? `Обновлено: ${formatPublishDate(record.gdoc_refreshed_at)}` : "Не удалось загрузить из Google Doc";
+        }
+      });
+      // Don't overwrite below — early return from the async block is handled above
+    } else {
+      textLightboxGdocUpdated.textContent = `Обновлено: ${formatPublishDate(record.gdoc_refreshed_at)}`;
+    }
+  } else {
+    textLightboxGdocBanner.classList.add("hidden");
+  }
+
+  textLightboxBody.innerHTML = bodyHtml;
+
+  // Navigation
+  const hasMultiple = currentTextList.length > 1;
+  textLightboxPrevBtn.classList.toggle("hidden", !hasMultiple || index === 0);
+  textLightboxNextBtn.classList.toggle("hidden", !hasMultiple || index === currentTextList.length - 1);
+
+  // Edit/delete tools
+  const canEdit = isOwner(record);
+  if (textLightboxTools) textLightboxTools.classList.toggle("hidden", !canEdit);
+
+  textLightbox.classList.add("open");
+  document.body.style.overflow = "hidden";
+
+  // Load comments for text
+  loadTextComments(record.id);
+  } catch(e) { console.error("openTextLightbox error:", e); }
+}
+
+function closeTextLightbox() {
+  textLightbox.classList.remove("open");
+  document.body.style.overflow = "";
+  currentTextRecord = null;
+}
+
+if (textLightboxClose) textLightboxClose.addEventListener("click", closeTextLightbox);
+if (textLightbox) textLightbox.addEventListener("click", (e) => {
+  if (e.target === textLightbox) closeTextLightbox();
+});
+
+if (textLightboxPrevBtn) textLightboxPrevBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (currentTextIndex > 0) openTextLightbox(currentTextList[currentTextIndex - 1], currentTextIndex - 1);
+});
+if (textLightboxNextBtn) textLightboxNextBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (currentTextIndex < currentTextList.length - 1) openTextLightbox(currentTextList[currentTextIndex + 1], currentTextIndex + 1);
+});
+
+// --- Зум текста ---
+let textZoomLevel = 1.0; // множитель em
+const TEXT_ZOOM_STEP = 0.1;
+const TEXT_ZOOM_MIN = 0.7;
+const TEXT_ZOOM_MAX = 2.0;
+
+function applyTextZoom() {
+  if (textLightboxBody) {
+    textLightboxBody.style.fontSize = textZoomLevel.toFixed(1) + "em";
+  }
+}
+
+const textZoomInBtn = document.getElementById("textZoomInBtn");
+const textZoomOutBtn = document.getElementById("textZoomOutBtn");
+
+if (textZoomInBtn) textZoomInBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (textZoomLevel < TEXT_ZOOM_MAX) { textZoomLevel = Math.min(TEXT_ZOOM_MAX, textZoomLevel + TEXT_ZOOM_STEP); applyTextZoom(); }
+});
+if (textZoomOutBtn) textZoomOutBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (textZoomLevel > TEXT_ZOOM_MIN) { textZoomLevel = Math.max(TEXT_ZOOM_MIN, textZoomLevel - TEXT_ZOOM_STEP); applyTextZoom(); }
+});
+
+// --- Поделиться текстом ---
+function getTextPlainContent(record) {
+  if (!record) return "";
+  const title = record.title || "Без названия";
+  const body = record.body ? record.body.replace(/<br\s*\/?>/gi, "\n").replace(/<\/p>/gi, "\n").replace(/<[^>]*>/g, "") : "";
+  const author = displayNameFor(record.owner_code, record.owner_name);
+  const date = formatPublishDate(record.created_at);
+  return `${title}\n${author} · ${date}\n\n${body.trim()}`;
+}
+
+const textShareBtn = document.getElementById("textShareBtn");
+if (textShareBtn) textShareBtn.addEventListener("click", async (e) => {
+  e.stopPropagation();
+  if (!currentTextRecord) return;
+  const text = getTextPlainContent(currentTextRecord);
+  const title = currentTextRecord.title || "Текст";
+  if (navigator.share) {
+    try {
+      await navigator.share({ title, text });
+    } catch (err) {
+      if (err.name !== "AbortError") showToast("Не удалось поделиться");
+    }
+  } else {
+    // fallback — копируем
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast("Текст скопирован в буфер обмена");
+    } catch { showToast("Поделиться не поддерживается"); }
+  }
+});
+
+const textCopyBtn = document.getElementById("textCopyBtn");
+if (textCopyBtn) textCopyBtn.addEventListener("click", async (e) => {
+  e.stopPropagation();
+  if (!currentTextRecord) return;
+  const text = getTextPlainContent(currentTextRecord);
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast("Скопировано!");
+  } catch { showToast("Не удалось скопировать"); }
+});
+
+const textDownloadBtn = document.getElementById("textDownloadBtn");
+if (textDownloadBtn) textDownloadBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (!currentTextRecord) return;
+  const text = getTextPlainContent(currentTextRecord);
+  const filename = (currentTextRecord.title || "текст").replace(/[^а-яёa-z0-9_\- ]/gi, "_").slice(0, 60) + ".txt";
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+// Open upload text modal
+function openTextModal(record = null) {
+  editingTextRecord = record;
+  fillTextCategorySelect();
+
+  if (record) {
+    textModalTitle.textContent = "Редактировать текст ✏️";
+    textTitle.value = record.title || "";
+    textContent.innerHTML = record.body || "";
+    textGdocUrl.value = record.gdoc_url || "";
+    textFollowersOnly.checked = !!record.followers_only;
+    textCategory.value = record.category_id || "";
+    if (newTextCategoryWrap) newTextCategoryWrap.classList.add("hidden");
+    textConfirm.textContent = "Сохранить";
+  } else {
+    textModalTitle.textContent = "Новый текст 📝";
+    textTitle.value = "";
+    textContent.innerHTML = "";
+    textGdocUrl.value = "";
+    textFollowersOnly.checked = false;
+    textCategory.value = "";
+    if (newTextCategoryWrap) newTextCategoryWrap.classList.add("hidden");
+    textConfirm.textContent = "Добавить";
+  }
+
+  textModal.classList.add("active");
+}
+
+if (uploadTextBtn) uploadTextBtn.addEventListener("click", () => openTextModal());
+
+if (textCancel) textCancel.addEventListener("click", () => {
+  textModal.classList.remove("active");
+  editingTextRecord = null;
+});
+
+if (textLightboxEditBtn) textLightboxEditBtn.addEventListener("click", () => {
+  closeTextLightbox();
+  openTextModal(currentTextRecord || editingTextRecord);
+});
+
+if (textLightboxDeleteBtn) textLightboxDeleteBtn.addEventListener("click", async () => {
+  if (!currentTextRecord) return;
+  if (!confirm("Удалить этот текст?")) return;
+  const { error } = await db.from(TEXT_TABLE).delete().eq("id", currentTextRecord.id);
+  if (error) { showToast("Ошибка: " + error.message); return; }
+  closeTextLightbox();
+  loadTexts();
+  showToast("Текст удалён");
+});
+
+if (textConfirm) textConfirm.addEventListener("click", async () => {
+  const title = textTitle ? textTitle.value.trim() : "";
+  if (!title) { showToast("Введи заголовок"); return; }
+
+  const bodyHtml = textContent ? textContent.innerHTML : "";
+  const gdocUrl = textGdocUrl ? textGdocUrl.value.trim() : "";
+
+  let categoryId = textCategory ? textCategory.value : null;
+  if (categoryId === NEW_TEXT_CATEGORY_VALUE) {
+    const catName = newTextCategoryName ? newTextCategoryName.value.trim() : "";
+    if (!catName) { showToast("Введи название раздела"); return; }
+    const { data: created, error: catErr } = await db.from(CATEGORY_TABLE).insert({ name: catName, approved: false }).select().single();
+    if (catErr) { showToast("Ошибка создания раздела: " + catErr.message); return; }
+    categoryId = created.id;
+  } else if (!categoryId) {
+    categoryId = null;
+  }
+
+  const identity = currentIdentity || getIdentity();
+  const payload = {
+    title,
+    body: bodyHtml,
+    gdoc_url: gdocUrl || null,
+    owner_name: identity ? identity.name : null,
+    owner_code: identity ? identity.code : null,
+    followers_only: textFollowersOnly ? textFollowersOnly.checked : false,
+    category_id: categoryId,
+  };
+
+  if (editingTextRecord) {
+    const { error } = await db.from(TEXT_TABLE).update(payload).eq("id", editingTextRecord.id);
+    if (error) { showToast("Ошибка сохранения: " + error.message); return; }
+    showToast("Текст сохранён!");
+  } else {
+    const { error } = await db.from(TEXT_TABLE).insert(payload);
+    if (error) { showToast("Ошибка: " + error.message); return; }
+    showToast("Текст добавлен!");
+  }
+
+  textModal.classList.remove("active");
+  editingTextRecord = null;
+  loadTexts();
+});
+
+// Comments for text posts (simple, reuse the pattern)
+async function loadTextComments(textId) {
+  const listEl = document.getElementById("textCommentList");
+  if (!listEl) return;
+  listEl.innerHTML = "<div style='color:#bbb;font-size:0.9em;'>Загружаю комментарии...</div>";
+
+  const { data, error } = await db.from(COMMENTS_TABLE)
+    .select("*")
+    .eq("target_type", "text")
+    .eq("target_id", textId)
+    .order("created_at", { ascending: true });
+
+  if (error) { listEl.innerHTML = "Ошибка загрузки комментариев"; return; }
+
+  if (!data || !data.length) {
+    listEl.innerHTML = "<div style='color:#bbb;font-size:0.9em;'>Пока нет комментариев</div>";
+    return;
+  }
+
+  listEl.innerHTML = "";
+  data.forEach(comment => {
+    const div = document.createElement("div");
+    div.className = "comment-item";
+    div.innerHTML = `
+      <span class="comment-author">${escapeHtml(comment.author_name || "аноним")}</span>
+      <span class="comment-text">${escapeHtml(comment.text || "")}</span>
+      <span class="comment-date">${formatPublishDate(comment.created_at)}</span>
+    `;
+    listEl.appendChild(div);
+  });
+}
+
+const textCommentSubmit = document.getElementById("textCommentSubmit");
+const textCommentInput = document.getElementById("textCommentInput");
+
+if (textCommentSubmit) textCommentSubmit.addEventListener("click", async () => {
+  if (!currentTextRecord) return;
+  const text = textCommentInput ? textCommentInput.value.trim() : "";
+  if (!text) return;
+  const identity = currentIdentity || getIdentity();
+  const { error } = await db.from(COMMENTS_TABLE).insert({
+    target_type: "text",
+    target_id: currentTextRecord.id,
+    text,
+    author_name: identity ? identity.name : "аноним",
+    author_code: identity ? identity.code : null,
+  });
+  if (error) { showToast("Ошибка: " + error.message); return; }
+  if (textCommentInput) textCommentInput.value = "";
+  loadTextComments(currentTextRecord.id);
 });
 
 /* ==================================================================
@@ -3507,3 +4018,52 @@ function initRealtime() {
   subscribeSitePresence();
   if (currentIdentity) subscribeActivityRealtime();
 }
+
+/* ==================================================================
+   POLLING — обновление галереи каждую минуту
+   ================================================================== */
+function startPolling() {
+  setInterval(async () => {
+    if (!db) return;
+    // Тихо обновляем текущий таб без сброса UI
+    try {
+      if (currentTab === "photo") {
+        const { data, error } = await db
+          .from(PHOTO_TABLE)
+          .select("*")
+          .order("created_at", { ascending: false });
+        if (!error && data) {
+          if (!mySubscriptions) await loadMySubscriptions();
+          allRecords = (data || []).filter(canSeeRecord);
+          await preloadProfilesFor(allRecords);
+          applySearch();
+        }
+      } else if (currentTab === "video") {
+        const { data, error } = await db
+          .from(VIDEO_TABLE)
+          .select("*")
+          .order("created_at", { ascending: false });
+        if (!error && data) {
+          if (!mySubscriptions) await loadMySubscriptions();
+          allVideoRecords = (data || []).filter(canSeeRecord);
+          await preloadProfilesFor(allVideoRecords);
+          applyVideoSearch();
+        }
+      } else if (currentTab === "text") {
+        const { data, error } = await db
+          .from(TEXT_TABLE)
+          .select("*")
+          .order("created_at", { ascending: false });
+        if (!error && data) {
+          if (!mySubscriptions) await loadMySubscriptions();
+          allTextRecords = (data || []).filter(canSeeRecord);
+          fillAuthorFilter();
+          await preloadProfilesFor(allTextRecords);
+          applyTextSearch();
+        }
+      }
+    } catch (e) { /* тихо игнорируем ошибки поллинга */ }
+  }, 60 * 1000);
+}
+
+startPolling();

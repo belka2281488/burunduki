@@ -119,3 +119,24 @@
   color: #8a6a4a;
   font-style: italic;
 }
+
+.admin-row-info {
+  flex: 1;
+  min-width: 150px;
+}
+
+.admin-row-preview {
+  font-size: 0.79rem;
+  color: #a08668;
+  margin-top: 3px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.admin-empty {
+  color: #8a6a4a;
+  font-style: italic;
+  padding: 8px 0;
+}

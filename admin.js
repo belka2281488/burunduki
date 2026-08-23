@@ -847,12 +847,86 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+/* ---------- Тексты ---------- */
+const TEXT_TABLE = "burunduk_texts";
+let allTexts = [];
+
+async function loadTexts() {
+  const { data, error } = await db
+    .from(TEXT_TABLE)
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) {
+    const el = document.getElementById("textsList");
+    if (el) el.textContent = "Ошибка загрузки текстов: " + error.message;
+    return;
+  }
+  allTexts = data || [];
+  renderTexts();
+}
+
+function renderTexts() {
+  const el = document.getElementById("textsList");
+  if (!el) return;
+  const query = (document.getElementById("textSearch")?.value || "").trim().toLowerCase();
+  let filtered = allTexts;
+  if (query) {
+    filtered = filtered.filter(t =>
+      (t.title || "").toLowerCase().includes(query) ||
+      (t.owner_name || "").toLowerCase().includes(query)
+    );
+  }
+  if (!filtered.length) {
+    el.innerHTML = "<div class='admin-empty'>Нет текстовых постов</div>";
+    return;
+  }
+  el.innerHTML = "";
+  filtered.forEach(text => {
+    const preview = text.body ? text.body.replace(/<[^>]*>/g, "").slice(0, 120) : "";
+    const row = document.createElement("div");
+    row.className = "admin-row";
+    row.innerHTML = `
+      <div class="admin-row-info">
+        <div class="admin-row-title">${escapeHtml(text.title || "Без названия")}</div>
+        <div class="admin-row-sub">
+          автор: ${escapeHtml(text.owner_name || "—")} ·
+          ${new Date(text.created_at).toLocaleDateString("ru")}
+          ${text.followers_only ? " · 🔒 только подписчики" : ""}
+          ${text.gdoc_url ? " · 📄 Google Doc" : ""}
+        </div>
+        ${preview ? `<div class="admin-row-preview">${escapeHtml(preview)}…</div>` : ""}
+      </div>
+      <div class="admin-row-actions">
+        <button class="tool-btn danger" data-delete>Удалить</button>
+      </div>
+    `;
+    row.querySelector("[data-delete]").addEventListener("click", () => deleteText(text));
+    el.appendChild(row);
+  });
+}
+
+async function deleteText(text) {
+  const ok = await askConfirm(
+    "Удалить текст?",
+    `«${text.title || "Без названия"}» (автор: ${text.owner_name || "—"}) будет удалён безвозвратно.`
+  );
+  if (!ok) return;
+  const { error } = await db.from(TEXT_TABLE).delete().eq("id", text.id);
+  if (error) { showToast("Ошибка: " + error.message); return; }
+  showToast("Текст удалён");
+  await loadTexts();
+}
+
+const textSearchInput = document.getElementById("textSearch");
+if (textSearchInput) textSearchInput.addEventListener("input", renderTexts);
+
 /* ---------- Старт ---------- */
 async function boot() {
   if (!initSupabase()) return;
   await loadCategories();
   await loadPhotos();
   await loadVideos();
+  await loadTexts();
   renderUsers();
 }
 

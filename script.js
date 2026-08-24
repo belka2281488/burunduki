@@ -2267,7 +2267,7 @@ async function loadTextComments(textId) {
     `;
     listEl.appendChild(div);
   });
-
+}
   // После рендера комментариев возвращаемся наверх — иначе браузер прыгает вниз
   if (textLightbox) textLightbox.scrollTop = 0;
 
@@ -4089,8 +4089,8 @@ function startPolling() {
           .order("created_at", { ascending: false });
         if (!error && data) {
           if (!mySubscriptions) await loadMySubscriptions();
-          allRecords = (data || []).filter(canSeeRecord);
-          await preloadProfilesFor(allRecords);
+          allPhotoRecords = (data || []).filter(canSeeRecord);
+          await preloadProfilesFor(allPhotoRecords);
           applySearch();
         }
       } else if (currentTab === "video") {
@@ -4102,7 +4102,7 @@ function startPolling() {
           if (!mySubscriptions) await loadMySubscriptions();
           allVideoRecords = (data || []).filter(canSeeRecord);
           await preloadProfilesFor(allVideoRecords);
-          applyVideoSearch();
+          applySearch(); // В твоем основном коде поиск для видео вызывается через applySearch
         }
       } else if (currentTab === "text") {
         const { data, error } = await db
@@ -4121,4 +4121,6 @@ function startPolling() {
   }, 60 * 1000);
 }
 
+// Запускаем всё при старте
+initRealtime();
 startPolling();

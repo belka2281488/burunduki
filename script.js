@@ -3411,7 +3411,8 @@ async function openFramesModal() {
 
   const postsCount =
     allPhotoRecords.filter((r) => r.owner_code === currentIdentity.code).length +
-    allVideoRecords.filter((r) => r.owner_code === currentIdentity.code).length;
+    allVideoRecords.filter((r) => r.owner_code === currentIdentity.code).length +
+    allTextRecords.filter((r) => r.owner_code === currentIdentity.code).length;
 
   const totalViews = await getTotalViewsForOwner(currentIdentity.code);
 

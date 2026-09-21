@@ -94,6 +94,26 @@ const myProfileBtn = document.getElementById("myProfileBtn");
 const nameModal = document.getElementById("nameModal");
 const nameInput = document.getElementById("nameInput");
 const nameConfirm = document.getElementById("nameConfirm");
+const emailLoginInput = document.getElementById("emailLoginInput");
+
+const welcomeCodeModal = document.getElementById("welcomeCodeModal");
+const welcomeCodeValue = document.getElementById("welcomeCodeValue");
+const welcomeCodeCopy = document.getElementById("welcomeCodeCopy");
+const welcomeCodeClose = document.getElementById("welcomeCodeClose");
+
+const myCodeBtn = document.getElementById("myCodeBtn");
+const myCodeModal = document.getElementById("myCodeModal");
+const myCodeClose = document.getElementById("myCodeClose");
+const showMyCodeBtn = document.getElementById("showMyCodeBtn");
+const myCodeHidden = document.getElementById("myCodeHidden");
+const myCodeVisible = document.getElementById("myCodeVisible");
+const myCodeValue = document.getElementById("myCodeValue");
+const myCodeCopy = document.getElementById("myCodeCopy");
+const emailBindInput = document.getElementById("emailBindInput");
+const emailBindSave = document.getElementById("emailBindSave");
+const emailBindStatus = document.getElementById("emailBindStatus");
+const restoreCodeInput = document.getElementById("restoreCodeInput");
+const restoreCodeBtn = document.getElementById("restoreCodeBtn");
 
 /* ---------- DOM: фото ---------- */
 const fileInput = document.getElementById("fileInput");
@@ -345,9 +365,44 @@ nameConfirm.addEventListener("click", async () => {
     showToast("Введи своё имя");
     return;
   }
+
+  const emailVal = (emailLoginInput ? emailLoginInput.value.trim().toLowerCase() : "");
+  const isNewUser = !currentIdentity;
+
+  // Если введён email — ищем существующий аккаунт по нему
+  if (emailVal && db) {
+    const { data: found } = await db
+      .from(PROFILES_TABLE)
+      .select("owner_code, display_name")
+      .eq("email", emailVal)
+      .maybeSingle();
+
+    if (found) {
+      // Входим в найденный аккаунт
+      const restoredIdentity = { name: found.display_name || name, code: found.owner_code };
+      localStorage.setItem(IDENTITY_KEY, JSON.stringify(restoredIdentity));
+      currentIdentity = restoredIdentity;
+      nameModal.classList.remove("active");
+      if (emailLoginInput) emailLoginInput.value = "";
+      nameInput.value = "";
+      showToast("✅ Вошёл в существующий аккаунт по email!");
+      refreshWhoAmI();
+      refreshMyGigerBalance();
+      refreshActivityBadge();
+      subscribeActivityRealtime();
+      subscribeSitePresence();
+      unlockedKurymdykSet = null;
+      unlockedKurymdykForCode = null;
+      await Promise.all([loadPhotos(), loadVideos()]);
+      return;
+    }
+  }
+
+  // Обычный вход / создание аккаунта
   currentIdentity = currentIdentity ? updateIdentityName(name) : saveIdentity(name);
   nameModal.classList.remove("active");
   nameInput.value = "";
+  if (emailLoginInput) emailLoginInput.value = "";
   refreshWhoAmI();
   refreshMyGigerBalance();
   refreshActivityBadge();
@@ -356,15 +411,21 @@ nameConfirm.addEventListener("click", async () => {
 
   if (db && currentIdentity) {
     delete profileCache[currentIdentity.code];
-    await db
-      .from(PROFILES_TABLE)
-      .upsert({ owner_code: currentIdentity.code, display_name: name }, { onConflict: "owner_code" });
+    const upsertPayload = { owner_code: currentIdentity.code, display_name: name };
+    if (emailVal) upsertPayload.email = emailVal;
+    await db.from(PROFILES_TABLE).upsert(upsertPayload, { onConflict: "owner_code" });
     delete profileCache[currentIdentity.code];
   }
 
   unlockedKurymdykSet = null;
   unlockedKurymdykForCode = null;
   await Promise.all([loadPhotos(), loadVideos()]);
+
+  // Показываем welcome-модалку только новым пользователям
+  if (isNewUser && welcomeCodeModal && welcomeCodeValue) {
+    welcomeCodeValue.textContent = currentIdentity.code;
+    welcomeCodeModal.classList.add("active");
+  }
 });
 
 changeNameBtn.addEventListener("click", () => {
@@ -4808,5 +4869,127 @@ if (editGameModalSave) {
     editGameModalSave.textContent = "Сохранить";
     showGameToast("Игра обновлена! ✅");
     loadGames();
+  });
+}
+
+/* ==================================================================
+   КОД ВХОДА — welcome модалка, кнопка 🔑, привязка email, восстановление
+   ================================================================== */
+
+// Welcome-модалка: копировать + закрыть
+if (welcomeCodeCopy) {
+  welcomeCodeCopy.addEventListener("click", () => {
+    navigator.clipboard.writeText(welcomeCodeValue.textContent).then(() => {
+      showToast("Код скопирован!");
+    });
+  });
+}
+if (welcomeCodeClose) {
+  welcomeCodeClose.addEventListener("click", () => {
+    welcomeCodeModal.classList.remove("active");
+  });
+}
+
+// Кнопка 🔑 — открыть модалку кода
+if (myCodeBtn) {
+  myCodeBtn.addEventListener("click", () => {
+    if (!currentIdentity) {
+      showToast("Сначала войди в аккаунт");
+      return;
+    }
+    // Сброс состояния
+    myCodeHidden.style.display = "";
+    myCodeVisible.style.display = "none";
+    emailBindStatus.textContent = "";
+    restoreCodeInput.value = "";
+    // Подгружаем текущий email если есть
+    if (db) {
+      db.from(PROFILES_TABLE).select("email").eq("owner_code", currentIdentity.code).maybeSingle().then(({ data }) => {
+        if (data && data.email) {
+          emailBindInput.value = data.email;
+          emailBindStatus.textContent = `✅ Привязан: ${data.email}`;
+          emailBindStatus.style.color = "var(--accent, #6fcf97)";
+        } else {
+          emailBindInput.value = "";
+        }
+      });
+    }
+    myCodeModal.classList.add("active");
+  });
+}
+
+// Показать/скрыть код с подтверждением
+if (showMyCodeBtn) {
+  showMyCodeBtn.addEventListener("click", () => {
+    if (!confirm("Не показывай этот код другим людям — он даёт полный доступ к твоему аккаунту. Всё равно показать?")) return;
+    myCodeValue.textContent = currentIdentity.code;
+    myCodeHidden.style.display = "none";
+    myCodeVisible.style.display = "";
+  });
+}
+
+// Копировать код
+if (myCodeCopy) {
+  myCodeCopy.addEventListener("click", () => {
+    navigator.clipboard.writeText(myCodeValue.textContent).then(() => showToast("Код скопирован!"));
+  });
+}
+
+// Закрыть модалку кода
+if (myCodeClose) {
+  myCodeClose.addEventListener("click", () => {
+    myCodeModal.classList.remove("active");
+  });
+}
+
+// Привязать email
+if (emailBindSave) {
+  emailBindSave.addEventListener("click", async () => {
+    if (!currentIdentity || !db) return;
+    const email = emailBindInput.value.trim().toLowerCase();
+    if (!email || !email.includes("@")) {
+      emailBindStatus.textContent = "Введи корректный email";
+      emailBindStatus.style.color = "var(--danger, #eb5757)";
+      return;
+    }
+    emailBindStatus.textContent = "Сохраняю...";
+    emailBindStatus.style.color = "";
+    const { error } = await db.from(PROFILES_TABLE)
+      .update({ email })
+      .eq("owner_code", currentIdentity.code);
+    if (error) {
+      if (error.code === "23505") {
+        emailBindStatus.textContent = "❌ Этот email уже привязан к другому аккаунту";
+      } else {
+        emailBindStatus.textContent = "❌ Ошибка: " + error.message;
+      }
+      emailBindStatus.style.color = "var(--danger, #eb5757)";
+    } else {
+      emailBindStatus.textContent = `✅ Email привязан: ${email}`;
+      emailBindStatus.style.color = "var(--accent, #6fcf97)";
+      showToast("Email привязан! Теперь можно войти с любого устройства.");
+    }
+  });
+}
+
+// Войти по коду вручную
+if (restoreCodeBtn) {
+  restoreCodeBtn.addEventListener("click", async () => {
+    const code = restoreCodeInput.value.trim();
+    if (!code) {
+      showToast("Вставь свой код");
+      return;
+    }
+    if (!db) return;
+    const { data, error } = await db.from(PROFILES_TABLE).select("owner_code, display_name").eq("owner_code", code).maybeSingle();
+    if (error || !data) {
+      showToast("❌ Аккаунт с таким кодом не найден");
+      return;
+    }
+    if (!confirm(`Войти как «${data.display_name || "без имени"}»? Текущий аккаунт будет заменён в этом браузере.`)) return;
+    const restored = { name: data.display_name || currentIdentity?.name || "—", code: data.owner_code };
+    localStorage.setItem(IDENTITY_KEY, JSON.stringify(restored));
+    showToast("✅ Аккаунт восстановлен! Перезагружаю...");
+    setTimeout(() => location.reload(), 1200);
   });
 }

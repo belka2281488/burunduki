@@ -2879,3 +2879,17 @@ main {
 }
 
 .game-comment-submit { flex-shrink: 0; }
+
+
+/* ===== КОД ВХОДА ===== */
+.code-display-box {
+  background: var(--bg-secondary, #1a1a1a);
+  border: 1px solid var(--border, #333);
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0;
+  flex-wrap: wrap;
+}

@@ -16,6 +16,7 @@
     <span class="giger-badge" id="whoAmIGigers" title="Твои гиперзадки"></span>
     <button id="changeNameBtn" class="link-btn">сменить имя</button>
     <button id="myProfileBtn" class="link-btn">мой профиль</button>
+    <button id="myCodeBtn" class="activity-bell-btn" title="Мой код входа" aria-label="Мой код входа">🔑</button>
     <button id="activityBellBtn" class="activity-bell-btn" title="Центр активности" aria-label="Центр активности">
       🔔<span id="activityBadge" class="activity-badge hidden">0</span>
     </button>
@@ -229,8 +230,63 @@
     <h3>Привет! 👋</h3>
     <p class="modal-warning">Как тебя зовут? Это нужно, чтобы потом только ты мог редактировать своих загруженных бурундуков.</p>
     <input type="text" id="nameInput" class="modal-input" placeholder="твоё имя">
+    <div id="emailLoginWrap" style="margin-top:12px;">
+      <p style="font-size:0.85em;color:var(--text-muted,#888);margin:0 0 6px;">Уже есть аккаунт? Введи свой email чтобы войти:</p>
+      <input type="email" id="emailLoginInput" class="modal-input" placeholder="твой email (необязательно)">
+    </div>
     <div class="modal-actions">
       <button id="nameConfirm" class="pick-btn small">Готово</button>
+    </div>
+  </div>
+</div>
+
+<!-- Модалка: добро пожаловать + показ кода после первой регистрации -->
+<div id="welcomeCodeModal" class="modal">
+  <div class="modal-box modal-box-small">
+    <h3>🎉 Аккаунт создан!</h3>
+    <p>Сохрани свой код входа — он нужен чтобы войти в аккаунт на другом устройстве или браузере. <strong>Не показывай его другим!</strong></p>
+    <div class="code-display-box">
+      <span id="welcomeCodeValue" style="font-family:monospace;font-size:0.85em;word-break:break-all;"></span>
+      <button id="welcomeCodeCopy" class="link-btn" style="margin-left:8px;">📋 копировать</button>
+    </div>
+    <p style="font-size:0.82em;color:var(--text-muted,#888);">Посмотреть код потом можно через кнопку 🔑 рядом с колокольчиком.</p>
+    <p style="font-size:0.82em;color:var(--text-muted,#888);">Также можно привязать email в настройках кода — тогда аккаунт будет восстанавливаться автоматически.</p>
+    <div class="modal-actions">
+      <button id="welcomeCodeClose" class="pick-btn small">Понятно!</button>
+    </div>
+  </div>
+</div>
+
+<!-- Модалка: мой код входа -->
+<div id="myCodeModal" class="modal">
+  <div class="modal-box modal-box-small">
+    <h3>🔑 Мой код входа</h3>
+    <p style="font-size:0.88em;">Этот код — твой аккаунт. Сохрани его в надёжном месте.<br><strong>Никому не показывай и не передавай!</strong></p>
+    <div id="myCodeHidden">
+      <button id="showMyCodeBtn" class="pick-btn small">👁 Показать код</button>
+    </div>
+    <div id="myCodeVisible" style="display:none;">
+      <div class="code-display-box">
+        <span id="myCodeValue" style="font-family:monospace;font-size:0.82em;word-break:break-all;"></span>
+        <button id="myCodeCopy" class="link-btn" style="margin-left:8px;">📋 копировать</button>
+      </div>
+    </div>
+
+    <hr style="margin:14px 0;border-color:var(--border,#333);">
+    <p style="font-size:0.88em;margin-bottom:6px;"><strong>📧 Привязка email</strong> — чтобы войти в аккаунт с любого устройства:</p>
+    <div id="emailBindWrap">
+      <input type="email" id="emailBindInput" class="modal-input" placeholder="твой email">
+      <button id="emailBindSave" class="pick-btn small" style="margin-top:8px;">Привязать</button>
+      <p id="emailBindStatus" style="font-size:0.82em;margin-top:6px;"></p>
+    </div>
+
+    <hr style="margin:14px 0;border-color:var(--border,#333);">
+    <p style="font-size:0.88em;margin-bottom:6px;"><strong>🔄 Войти по коду</strong> — вставь код с другого устройства:</p>
+    <input type="text" id="restoreCodeInput" class="modal-input" placeholder="вставь свой owner_code">
+    <button id="restoreCodeBtn" class="pick-btn small" style="margin-top:8px;">Войти</button>
+
+    <div class="modal-actions" style="margin-top:16px;">
+      <button id="myCodeClose" class="link-btn">закрыть</button>
     </div>
   </div>
 </div>

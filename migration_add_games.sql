@@ -12,6 +12,8 @@ create table if not exists burunduk_games (
   title       text not null,
   description text,
   author      text,
+  owner_code  text,
+  owner_name  text,
   icon_url    text,
   created_at  timestamptz default now()
 );
@@ -46,6 +48,8 @@ create table if not exists burunduk_game_comments (
   text        text not null,
   author_name text,
   author_code text,
+  reply_to_id bigint references burunduk_game_comments(id) on delete set null,
+  edited_at   timestamptz,
   created_at  timestamptz default now()
 );
 
@@ -89,3 +93,13 @@ create policy "gdl_delete" on burunduk_game_downloads for delete using (true);
 create policy "gcom_read"   on burunduk_game_comments for select using (true);
 create policy "gcom_insert" on burunduk_game_comments for insert with check (true);
 create policy "gcom_delete" on burunduk_game_comments for delete using (true);
+
+create policy "gcom_update" on burunduk_game_comments for update using (true) with check (true);
+
+
+-- Ответы на игровые комментарии.
+alter table burunduk_game_comments
+  add column if not exists reply_to_id bigint references burunduk_game_comments(id) on delete set null;
+
+create index if not exists idx_burunduk_game_comments_reply
+  on burunduk_game_comments (reply_to_id);

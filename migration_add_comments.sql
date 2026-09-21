@@ -17,13 +17,14 @@
 
 create table if not exists burunduk_comments (
   id uuid primary key default gen_random_uuid(),
-  target_type text not null check (target_type in ('photo', 'video')),
+  target_type text not null check (target_type in ('photo', 'video', 'text')),
   target_id uuid not null,
   owner_code text, -- владелец карточки (кому упадёт уведомление в центр активности)
   author_code text not null,
   author_name text,
   text text not null,
   reply_to_id uuid references burunduk_comments (id) on delete set null,
+  edited_at timestamptz,
   created_at timestamptz not null default now()
 );
 

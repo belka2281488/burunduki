@@ -318,7 +318,7 @@ const commentEls = {
 };
 
 // Кому сейчас отвечаем: { id, name } комментария или null (обычный комментарий).
-let commentReplyTarget = { photo: null, video: null };
+let commentReplyTarget = { photo: null, video: null, game: {} };
 
 /* ---------- DOM: гиперзадки ---------- */
 const gigerEls = {
@@ -330,11 +330,15 @@ const gigerEls = {
     box: document.getElementById("videoGigerBox"),
     checkbox: document.getElementById("videoGigerCheckbox"),
   },
+  text: {
+    box: document.getElementById("textGigerBox"),
+    checkbox: document.getElementById("textGigerCheckbox"),
+  },
 };
 
 // true, если текущий пользователь уже подарил гиперзадку текущей карточке
 // (в таком случае чекбокс вообще не показываем — дарить больше нечего)
-let alreadyGifted = { photo: false, video: false };
+let alreadyGifted = { photo: false, video: false, text: false };
 
 let db = null;
 
@@ -626,7 +630,7 @@ function applySearch() {
   }
 
   if (currentTab === "games") {
-    // Передаём запрос в фильтр игр
+    // Для игр показываем именно количество игр, а не фотографий.
     const rawTokens = query ? query.split(",").map(t => t.trim().replace(/^#/, "")).filter(Boolean) : [];
     gameSearchQuery = rawTokens;
     renderGames();
@@ -2419,52 +2423,68 @@ async function loadTextComments(textId) {
   listEl.innerHTML = "<div style='color:#bbb;font-size:0.9em;'>Загружаю комментарии...</div>";
 
   const { data, error } = await db.from(COMMENTS_TABLE)
-    .select("*")
-    .eq("target_type", "text")
-    .eq("target_id", textId)
-    .order("created_at", { ascending: true });
+    .select("*").eq("target_type", "text").eq("target_id", textId).order("created_at", { ascending: true });
 
   if (error) { listEl.innerHTML = "Ошибка загрузки комментариев"; return; }
-
   if (!data || !data.length) {
     listEl.innerHTML = "<div style='color:#bbb;font-size:0.9em;'>Пока нет комментариев</div>";
     return;
   }
 
+  const { data: gifts } = await db.from(GIGER_GIFTS_TABLE).select("linked_comment_id").eq("target_type", "text").eq("target_id", textId);
+  const gifted = new Set((gifts || []).map(x => x.linked_comment_id).filter(Boolean));
   listEl.innerHTML = "";
   data.forEach(comment => {
     const div = document.createElement("div");
-    div.className = "comment-item";
+    div.className = "comment-item" + (gifted.has(comment.id) ? " comment-item-gifted" : "");
     div.innerHTML = `
-      <span class="comment-author">${escapeHtml(comment.author_name || "аноним")}</span>
-      <span class="comment-text">${escapeHtml(comment.text || "")}</span>
-      <span class="comment-date">${formatPublishDate(comment.created_at)}</span>
-    `;
+      <div class="comment-head"><span class="comment-author">${escapeHtml(comment.author_name || "аноним")}</span>
+      ${gifted.has(comment.id) ? `<span class="comment-gift-badge" title="Подарил гиперзадку"><img src="assets/giperzadka.png" alt=""></span>` : ""}
+      <span class="comment-time">${timeAgo(comment.created_at)}</span></div>
+      <div class="comment-text">${escapeHtml(comment.text || "").replace(/\n/g,"<br>")}</div>
+      ${comment.edited_at ? `<span class="comment-edited">(изменено)</span>` : ""}
+      ${currentIdentity && comment.author_code === currentIdentity.code ? `<div class="comment-actions"><button type="button" class="comment-edit-btn">✏️</button><button type="button" class="comment-delete-btn">🗑️</button></div>` : ""}`;
+    const eb = div.querySelector(".comment-edit-btn");
+    if (eb) eb.addEventListener("click", () => editComment("text", comment));
+    const dbtn = div.querySelector(".comment-delete-btn");
+    if (dbtn) dbtn.addEventListener("click", () => deleteComment("text", comment));
     listEl.appendChild(div);
   });
 }
+
   // После рендера комментариев возвращаемся наверх — иначе браузер прыгает вниз
   if (textLightbox) textLightbox.scrollTop = 0;
 
 const textCommentSubmit = document.getElementById("textCommentSubmit");
 const textCommentInput = document.getElementById("textCommentInput");
+const textGigerCheckbox = document.getElementById("textGigerCheckbox");
+const textGigerBox = document.getElementById("textGigerBox");
 
 if (textCommentSubmit) textCommentSubmit.addEventListener("click", async () => {
   if (!currentTextRecord) return;
   const text = textCommentInput ? textCommentInput.value.trim() : "";
   if (!text) return;
   const identity = currentIdentity || getIdentity();
-  const { error } = await db.from(COMMENTS_TABLE).insert({
+  const { data: insertedComment, error } = await db.from(COMMENTS_TABLE).insert({
     target_type: "text",
     target_id: currentTextRecord.id,
     text,
     author_name: identity ? identity.name : "аноним",
     author_code: identity ? identity.code : null,
-  });
+  }).select().single();
   if (error) { showToast("Ошибка: " + error.message); return; }
+  if (textGigerCheckbox && textGigerCheckbox.checked && !alreadyGifted.text) {
+    await sendGiger("text", currentTextRecord, text, insertedComment?.id || null);
+  } else {
+    showToast("Комментарий отправлен 💬");
+  }
   if (textCommentInput) textCommentInput.value = "";
+  if (textGigerCheckbox) textGigerCheckbox.checked = false;
   loadTextComments(currentTextRecord.id);
+  loadGiftState("text", currentTextRecord);
 });
+
+// Состояние подарка для текста обновляется при открытии текста.
 
 /* ==================================================================
    ОЦЕНКИ ("ранг бурундука" от 1 до 7, вместо звёзд)
@@ -2668,16 +2688,123 @@ function renderComments(kind, comments, rankByAuthor, giftedCommentIds) {
       </div>
       ${replyTag}
       <div class="comment-text">${escapeHtml(c.text || "").replace(/\n/g, "<br>")}</div>
-      <button type="button" class="comment-reply-btn" data-comment-id="${c.id}">Ответить</button>
+      ${c.edited_at ? `<span class="comment-edited">(изменено)</span>` : ""}
+      <div class="comment-actions">
+        <button type="button" class="comment-reply-btn" data-comment-id="${c.id}">Ответить</button>
+        ${currentIdentity && c.author_code === currentIdentity.code ? `<button type="button" class="comment-edit-btn" data-comment-id="${c.id}">✏️</button><button type="button" class="comment-delete-btn" data-comment-id="${c.id}">🗑️</button>` : ""}
+      </div>
     `;
 
     const replyBtn = item.querySelector(".comment-reply-btn");
     replyBtn.addEventListener("click", () => setReplyTarget(kind, c));
 
+    const editBtn = item.querySelector(".comment-edit-btn");
+    if (editBtn) editBtn.addEventListener("click", () => editComment(kind, c));
+    const deleteBtn = item.querySelector(".comment-delete-btn");
+    if (deleteBtn) deleteBtn.addEventListener("click", () => deleteComment(kind, c));
+
     els.list.appendChild(item);
   });
 
   applyOnlinePresence();
+}
+
+let activeCommentEdit = null;
+const commentEditModal = document.getElementById("commentEditModal");
+const commentEditInput = document.getElementById("commentEditInput");
+const commentEditCancel = document.getElementById("commentEditCancel");
+const commentEditSave = document.getElementById("commentEditSave");
+const commentEditStatus = document.getElementById("commentEditStatus");
+
+function updateCommentEditState() {
+  if (!commentEditInput || !commentEditSave || !activeCommentEdit) return;
+  const current = commentEditInput.value.trim();
+  const original = String(activeCommentEdit.text || "").trim();
+  const changed = current.length > 0 && current !== original;
+  commentEditSave.disabled = !changed;
+  if (commentEditStatus) {
+    commentEditStatus.textContent = !current
+      ? "Комментарий не может быть пустым."
+      : (changed ? "Изменения готовы к сохранению." : "Измените текст, чтобы сохранить изменения.");
+  }
+}
+
+function closeCommentEditModal() {
+  if (!commentEditModal) return;
+  commentEditModal.classList.remove("active");
+  commentEditModal.setAttribute("aria-hidden", "true");
+  activeCommentEdit = null;
+  if (commentEditInput) commentEditInput.value = "";
+  if (commentEditSave) commentEditSave.disabled = true;
+}
+
+function openCommentEditModal(kind, comment) {
+  if (!currentIdentity || comment.author_code !== currentIdentity.code || !commentEditModal || !commentEditInput) return;
+  activeCommentEdit = { kind, comment };
+  commentEditInput.value = comment.text || "";
+  commentEditModal.classList.add("active");
+  commentEditModal.setAttribute("aria-hidden", "false");
+  updateCommentEditState();
+  requestAnimationFrame(() => {
+    commentEditInput.focus();
+    commentEditInput.setSelectionRange(commentEditInput.value.length, commentEditInput.value.length);
+  });
+}
+
+if (commentEditInput) commentEditInput.addEventListener("input", updateCommentEditState);
+if (commentEditCancel) commentEditCancel.addEventListener("click", closeCommentEditModal);
+if (commentEditModal) commentEditModal.addEventListener("click", (e) => {
+  if (e.target === commentEditModal) closeCommentEditModal();
+});
+
+async function saveEditedComment() {
+  if (!activeCommentEdit || !currentIdentity || !commentEditInput) return;
+  const { kind, comment } = activeCommentEdit;
+  const text = commentEditInput.value.trim();
+  const original = String(comment.text || "").trim();
+
+  if (!text || text === original) {
+    updateCommentEditState();
+    return;
+  }
+
+  commentEditSave.disabled = true;
+  commentEditSave.textContent = "Сохраняю...";
+
+  const table = kind === "game" ? GAME_COMMENTS_TABLE : COMMENTS_TABLE;
+  const { error } = await db.from(table)
+    .update({ text, edited_at: new Date().toISOString() })
+    .eq("id", comment.id)
+    .eq("author_code", currentIdentity.code);
+
+  commentEditSave.textContent = "Изменить";
+  if (error) {
+    commentEditSave.disabled = false;
+    (kind === "game" ? showGameToast : showToast)("Не удалось изменить комментарий: " + error.message);
+    return;
+  }
+
+  closeCommentEditModal();
+  if (kind === "text") loadTextComments(comment.target_id);
+  else if (kind === "game") loadGameComments(comment.game_id);
+  else loadComments(kind, comment.target_id);
+}
+
+if (commentEditSave) commentEditSave.addEventListener("click", saveEditedComment);
+
+async function editComment(kind, comment) {
+  openCommentEditModal(kind, comment);
+}
+
+async function deleteComment(kind, comment) {
+  if (!currentIdentity || comment.author_code !== currentIdentity.code) return;
+  if (!confirm("Удалить этот комментарий?")) return;
+  // ВАЖНО: подарок гиперзадки НЕ удаляем и НЕ возвращаем дарителю.
+  // У подарка linked_comment_id станет NULL по ON DELETE SET NULL,
+  // а сама гиперзадка останется у автора публикации.
+  const { error } = await db.from(COMMENTS_TABLE).delete().eq("id", comment.id).eq("author_code", currentIdentity.code);
+  if (error) { showToast("Не удалось удалить комментарий: " + error.message); return; }
+  if (kind === "text") loadTextComments(comment.target_id); else loadComments(kind, comment.target_id);
 }
 
 async function loadComments(kind, targetId) {
@@ -2782,6 +2909,7 @@ function bindGigerUncheckSound(kind) {
 }
 bindGigerUncheckSound("photo");
 bindGigerUncheckSound("video");
+bindGigerUncheckSound("text");
 
 /* ==================================================================
    ГИПЕРЗАДКИ (валюта: +1 за фото, +2 за видео, можно дарить авторам)
@@ -4489,6 +4617,12 @@ function renderGames() {
       games = [...games].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   }
 
+  if (typeof statusEl !== "undefined" && statusEl) {
+    statusEl.textContent = gameSearchQuery.length || gameAuthorFilter !== "all"
+      ? `Найдено игр: ${games.length}`
+      : `Игр в галерее: ${games.length}`;
+  }
+
   if (!games.length) {
     galleryGames.innerHTML = "<div class='games-empty'>🎮 " + (gameSearchQuery.length || gameAuthorFilter !== "all" ? "Ничего не найдено" : "Пока игр нет. Добавь первую!") + "</div>";
     return;
@@ -4572,9 +4706,18 @@ function renderGames() {
         </button>
         <div class="game-comments-body hidden" id="gameCommentsBody_${game.id}">
           <div class="game-comments-list" id="gameComList_${game.id}"></div>
+          <div class="comment-reply-hint hidden" id="gameReplyHint_${game.id}">
+            Ответ для <b id="gameReplyHintName_${game.id}"></b>
+            <button type="button" class="comment-reply-cancel game-reply-cancel" data-gid="${game.id}" title="Отменить ответ">✕</button>
+          </div>
           <div class="game-comment-form">
             <textarea class="modal-input modal-textarea game-comment-input"
               id="gameComInput_${game.id}" placeholder="Написать комментарий..."></textarea>
+            <label class="giger-gift-toggle game-giger-toggle" id="gameGigerBox_${game.id}">
+              <input type="checkbox" id="gameGigerCheckbox_${game.id}">
+              <img src="assets/giperzadka.png" class="giger-gift-icon" alt="гиперзадка">
+              <span>Подарить гиперзадку</span>
+            </label>
             <button class="pick-btn small game-comment-submit" data-gid="${game.id}">Отправить</button>
           </div>
         </div>
@@ -4603,10 +4746,26 @@ function renderGames() {
     const submitBtn = card.querySelector(".game-comment-submit");
     submitBtn.addEventListener("click", () => submitGameComment(game.id));
 
+    const replyCancelBtn = card.querySelector(".game-reply-cancel");
+    if (replyCancelBtn) {
+      replyCancelBtn.addEventListener("click", () => setGameReplyTarget(game.id, null));
+    }
+
+    const gameGigerCheckbox = card.querySelector(`#gameGigerCheckbox_${game.id}`);
+    if (gameGigerCheckbox) {
+      gameGigerCheckbox.addEventListener("change", (e) => {
+        if (!e.target.checked && gigerRemoveSound) {
+          gigerRemoveSound.currentTime = 0;
+          gigerRemoveSound.play().catch(() => {});
+        }
+      });
+    }
+
     galleryGames.appendChild(card);
 
-    // загружаем счётчик комментов
+    // загружаем счётчик комментов и состояние гиперзадки
     loadGameCommentsCount(game.id);
+    loadGameGigerState(game);
   });
 }
 
@@ -4647,53 +4806,195 @@ async function toggleGameComments(gameId) {
   if (opening) await loadGameComments(gameId);
 }
 
+function setGameReplyTarget(gameId, comment) {
+  commentReplyTarget.game[gameId] = comment
+    ? { id: comment.id, name: comment.author_name || "аноним" }
+    : null;
+
+  const hint = document.getElementById(`gameReplyHint_${gameId}`);
+  const hintName = document.getElementById(`gameReplyHintName_${gameId}`);
+  const input = document.getElementById(`gameComInput_${gameId}`);
+
+  if (comment) {
+    if (hintName) hintName.textContent = comment.author_name || "аноним";
+    if (hint) hint.classList.remove("hidden");
+  } else {
+    if (hint) hint.classList.add("hidden");
+  }
+  if (input) input.focus();
+}
+
 async function loadGameComments(gameId) {
   const list = document.getElementById(`gameComList_${gameId}`);
   if (!list || !db) return;
+
   list.innerHTML = "<div class='game-comments-loading'>Загружаю...</div>";
   const { data, error } = await db.from(GAME_COMMENTS_TABLE)
-    .select("*").eq("game_id", gameId).order("created_at", { ascending: true });
-  if (error || !data) { list.innerHTML = ""; return; }
+    .select("*")
+    .eq("game_id", gameId)
+    .order("created_at", { ascending: true });
+
+  if (error || !data) {
+    list.innerHTML = "";
+    return;
+  }
   if (!data.length) {
     list.innerHTML = "<div class='game-comments-empty'>Комментариев пока нет</div>";
     return;
   }
-  list.innerHTML = data.map(c => `
-    <div class="game-comment-item">
-      <div class="game-comment-head">
-        <span class="game-comment-author">${esc(c.author_name || "аноним")}</span>
-        <span class="game-comment-time">${timeAgo(c.created_at)}</span>
-        ${checkIsGiger() ? `<button class="game-comment-del" data-cid="${c.id}" data-gid="${gameId}">✕</button>` : ""}
-      </div>
-      <div class="game-comment-text">${esc(c.text || "").replace(/\n/g,"<br>")}</div>
-    </div>
-  `).join("");
 
-  list.querySelectorAll(".game-comment-del").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      await db.from(GAME_COMMENTS_TABLE).delete().eq("id", btn.dataset.cid);
-      loadGameComments(btn.dataset.gid);
-      loadGameCommentsCount(btn.dataset.gid);
+  const { data: gifts } = await db
+    .from("burunduk_game_giger_gifts")
+    .select("game_comment_id")
+    .eq("game_id", gameId);
+
+  const gifted = new Set((gifts || []).map(g => g.game_comment_id).filter(Boolean));
+  const byId = new Map(data.map(c => [c.id, c]));
+
+  list.innerHTML = data.map(c => {
+    const isGifted = gifted.has(c.id);
+    const parent = c.reply_to_id ? byId.get(c.reply_to_id) : null;
+    const replyTag = parent
+      ? `<div class="comment-reply-tag">→ ${escapeHtml(truncateName(parent.author_name, 15))}</div>`
+      : "";
+
+    return `
+      <div class="game-comment-item${c.reply_to_id ? " comment-item-reply" : ""}${isGifted ? " comment-item-gifted" : ""}">
+        <div class="game-comment-head">
+          <span class="online-dot" data-online-for="${c.author_code || ""}"></span>
+          <span class="game-comment-author comment-author" title="${escapeHtml(c.author_name || "аноним")}">${escapeHtml(truncateName(c.author_name, 15))}</span>
+          ${isGifted ? `<span class="comment-gift-badge" title="Подарил гиперзадку"><img src="assets/giperzadka.png" alt=""></span>` : ""}
+          <span class="game-comment-time comment-time">${timeAgo(c.created_at)}</span>
+        </div>
+        ${replyTag}
+        <div class="game-comment-text comment-text">${escapeHtml(c.text || "").replace(/\n/g,"<br>")}</div>
+        ${c.edited_at ? `<span class="comment-edited">(изменено)</span>` : ""}
+        <div class="comment-actions">
+          <button type="button" class="comment-reply-btn game-comment-reply" data-cid="${c.id}" data-gid="${gameId}">Ответить</button>
+          ${currentIdentity && c.author_code === currentIdentity.code
+            ? `<button type="button" class="game-comment-edit" data-cid="${c.id}" data-gid="${gameId}">✏️</button><button type="button" class="game-comment-del" data-cid="${c.id}" data-gid="${gameId}">🗑️</button>`
+            : ""}
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  list.querySelectorAll(".game-comment-reply").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const c = data.find(x => String(x.id) === String(btn.dataset.cid));
+      if (c) setGameReplyTarget(gameId, c);
     });
   });
+
+  list.querySelectorAll(".game-comment-edit").forEach(btn => btn.addEventListener("click", () => {
+    const c = data.find(x => String(x.id) === String(btn.dataset.cid));
+    if (!c || !currentIdentity || c.author_code !== currentIdentity.code) return;
+    openCommentEditModal("game", c);
+  }));
+
+  list.querySelectorAll(".game-comment-del").forEach(btn => btn.addEventListener("click", async () => {
+    if (!currentIdentity || !confirm("Удалить этот комментарий?")) return;
+    const { error: deleteError } = await db.from(GAME_COMMENTS_TABLE)
+      .delete()
+      .eq("id", btn.dataset.cid)
+      .eq("author_code", currentIdentity.code);
+
+    if (deleteError) showGameToast("Ошибка: " + deleteError.message);
+
+    // Если удаляли комментарий, на который кто-то отвечал, reply_to_id
+    // у ответов автоматически станет NULL благодаря ON DELETE SET NULL.
+    if (commentReplyTarget.game[btn.dataset.gid]?.id === Number(btn.dataset.cid)) {
+      setGameReplyTarget(btn.dataset.gid, null);
+    }
+    loadGameComments(btn.dataset.gid);
+    loadGameCommentsCount(btn.dataset.gid);
+  }));
+
+  applyOnlinePresence();
+}
+
+async function loadGameGigerState(game) {
+  const box = document.getElementById(`gameGigerBox_${game.id}`);
+  const checkbox = document.getElementById(`gameGigerCheckbox_${game.id}`);
+  if (!box || !checkbox) return;
+  checkbox.checked = false;
+  box.classList.remove("hidden");
+  if (!currentIdentity || !game.owner_code || game.owner_code === currentIdentity.code) {
+    box.classList.add("hidden");
+    return;
+  }
+  const { data } = await db.from("burunduk_game_giger_gifts").select("id").eq("game_id", game.id).eq("giver_code", currentIdentity.code).maybeSingle();
+  if (data) box.classList.add("hidden");
 }
 
 async function submitGameComment(gameId) {
   const input = document.getElementById(`gameComInput_${gameId}`);
+  const checkbox = document.getElementById(`gameGigerCheckbox_${gameId}`);
   if (!input) return;
+
   const text = input.value.trim();
-  if (!text) return;
+  if (!text) {
+    showGameToast("Напиши что-нибудь для комментария");
+    return;
+  }
+
   const identity = currentIdentity || getIdentity();
-  const { error } = await db.from(GAME_COMMENTS_TABLE).insert({
-    game_id: gameId,
-    text,
-    author_name: identity ? identity.name : "аноним",
-    author_code: identity ? identity.code : null,
-  });
-  if (error) { showGameToast("Ошибка: " + error.message); return; }
+  if (!identity) {
+    ensureIdentity();
+    return;
+  }
+
+  const game = allGames.find(g => String(g.id) === String(gameId));
+  if (!game) return;
+
+  const replyTarget = commentReplyTarget.game[gameId] || null;
+
+  const { data: insertedComment, error } = await db
+    .from(GAME_COMMENTS_TABLE)
+    .insert({
+      game_id: gameId,
+      text,
+      author_name: identity.name,
+      author_code: identity.code,
+      reply_to_id: replyTarget ? replyTarget.id : null,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    showGameToast("Ошибка: " + error.message);
+    return;
+  }
+
+  if (checkbox && checkbox.checked && game.owner_code && game.owner_code !== identity.code) {
+    const { data: gifted, error: giftErr } = await db.rpc("game_giger_gift", {
+      p_game_id: gameId,
+      p_game_comment_id: insertedComment.id,
+      p_giver_code: identity.code,
+      p_giver_name: identity.name,
+      p_owner_code: game.owner_code,
+      p_owner_name: game.owner_name || game.author || "Бурундук"
+    });
+
+    if (giftErr || gifted === false) {
+      showGameToast(
+        giftErr
+          ? "Комментарий отправлен, но гиперзадку подарить не удалось"
+          : "У тебя нет гиперзадок 😔"
+      );
+    } else {
+      showGameToast("Комментарий отправлен, гиперзадка подарена 🎁");
+    }
+  } else {
+    showGameToast("Комментарий отправлен 💬");
+  }
+
   input.value = "";
+  if (checkbox) checkbox.checked = false;
+  setGameReplyTarget(gameId, null);
   loadGameComments(gameId);
   loadGameCommentsCount(gameId);
+  loadGameGigerState(game);
 }
 
 /* ------------------------------------------------------------------ */
@@ -4784,6 +5085,8 @@ if (gameModalSave) {
       title,
       description: document.getElementById("gameDesc").value.trim() || null,
       author: author || "Бурундук",
+      owner_code: currentIdentity ? currentIdentity.code : null,
+      owner_name: currentIdentity ? currentIdentity.name : (author || "Бурундук"),
       icon_url: iconUrl,
     }]).select().single();
 

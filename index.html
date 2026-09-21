@@ -757,6 +757,20 @@
   </div>
 </div>
 
+<!-- Модал редактирования комментария -->
+<div id="commentEditModal" class="modal" aria-hidden="true">
+  <div class="modal-box comment-edit-modal-box" role="dialog" aria-modal="true" aria-labelledby="commentEditTitle">
+    <h3 id="commentEditTitle">✏️ Изменить комментарий</h3>
+    <label class="modal-label" for="commentEditInput">Введите изменённый текст</label>
+    <textarea id="commentEditInput" class="modal-input modal-textarea comment-edit-input" placeholder="Введите текст комментария..."></textarea>
+    <div class="comment-edit-status" id="commentEditStatus">Измените текст, чтобы сохранить изменения.</div>
+    <div class="modal-actions">
+      <button id="commentEditCancel" type="button" class="tool-btn">Отмена</button>
+      <button id="commentEditSave" type="button" class="pick-btn small" disabled>Изменить</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast" class="toast"></div>
 <audio id="gigerRemoveSound" src="assets/giperzadka.mp3" preload="auto"></audio>
 

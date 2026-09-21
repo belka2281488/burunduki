@@ -2828,6 +2828,30 @@ main {
   padding: 8px 0;
   border-bottom: 1px solid #f0e4d0;
 }
+
+/* Игровые комментарии используют те же состояния, что и комментарии фото/видео. */
+.game-comment-item.comment-item-gifted {
+  position: relative;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background-image:
+    linear-gradient(rgba(30, 18, 8, 0.9), rgba(30, 18, 8, 0.9)),
+    linear-gradient(120deg, #ff5f6d, #ffc371, #47e08f, #33c6ff, #a86bff, #ff5f6d);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+}
+.game-comment-item.comment-item-reply {
+  margin-left: 20px;
+  border-left: 2px solid rgba(62, 207, 94, 0.4);
+  background-color: rgba(255, 255, 255, 0.03);
+}
+.game-comment-item .comment-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+}
+
 .game-comment-item:last-child { border-bottom: none; }
 
 .game-comment-head {
@@ -2892,4 +2916,38 @@ main {
   gap: 6px;
   margin: 8px 0;
   flex-wrap: wrap;
+}
+
+
+/* Comment editing/deleting */
+.comment-actions { display:flex; gap:6px; margin-top:6px; align-items:center; }
+.comment-actions button { border:0; background:transparent; cursor:pointer; padding:2px 5px; }
+.comment-edited { font-size:0.78em; opacity:.65; margin-left:6px; }
+.game-comment-item .comment-actions { justify-content:flex-end; }
+.game-giger-toggle { margin:7px 0; }
+
+/* ===== РЕДАКТИРОВАНИЕ КОММЕНТАРИЯ ===== */
+.comment-edit-modal-box {
+  max-width: 520px;
+}
+
+.comment-edit-input {
+  min-height: 130px;
+  margin-bottom: 8px;
+}
+
+.comment-edit-status {
+  min-height: 20px;
+  margin-bottom: 14px;
+  color: #8a6a4a;
+  font-size: 0.84rem;
+}
+
+.comment-edit-modal-box .modal-actions {
+  justify-content: flex-end;
+}
+
+.comment-edit-modal-box #commentEditSave:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }

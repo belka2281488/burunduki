@@ -4510,6 +4510,32 @@ function showGameToast(msg) {
 /* ------------------------------------------------------------------ */
 /* ЗАГРУЗКА                                                             */
 /* ------------------------------------------------------------------ */
+async function resolveGameOwners(games) {
+  if (!db || !games.length) return;
+  const names = [...new Set(games.flatMap(g => [g.owner_name, g.author]).map(v => String(v || '').trim()).filter(Boolean))];
+  if (!names.length) return;
+  const { data, error } = await db.from(PROFILES_TABLE).select('owner_code, display_name').in('display_name', names);
+  if (error || !data) return;
+  const byName = new Map();
+  for (const profile of data) {
+    const name = String(profile.display_name || '').trim();
+    if (!name) continue;
+    const list = byName.get(name) || [];
+    list.push(profile);
+    byName.set(name, list);
+  }
+  for (const game of games) {
+    for (const name of [game.owner_name, game.author].map(v => String(v || '').trim()).filter(Boolean)) {
+      const matches = byName.get(name) || [];
+      if (matches.length === 1) {
+        game.owner_code = matches[0].owner_code;
+        game.owner_name = matches[0].display_name;
+        break;
+      }
+    }
+  }
+}
+
 async function loadGames() {
   if (!db) return;
   galleryGames.innerHTML = "<div class='games-empty'>Загружаю игры...</div>";
@@ -4529,6 +4555,7 @@ async function loadGames() {
         : (g[GAME_DOWNLOADS_TABLE]?.count ?? 0),
     }));
 
+    await resolveGameOwners(allGames);
     fillGameAuthorFilter();
     renderGames();
   } catch (e) {
@@ -4711,13 +4738,17 @@ function renderGames() {
             <button type="button" class="comment-reply-cancel game-reply-cancel" data-gid="${game.id}" title="Отменить ответ">✕</button>
           </div>
           <div class="game-comment-form">
-            <textarea class="modal-input modal-textarea game-comment-input"
+            <textarea class="modal-input modal-textarea rating-comment-input game-comment-input"
               id="gameComInput_${game.id}" placeholder="Написать комментарий..."></textarea>
-            <label class="giger-gift-toggle game-giger-toggle" id="gameGigerBox_${game.id}">
-              <input type="checkbox" id="gameGigerCheckbox_${game.id}">
-              <img src="assets/giperzadka.png" class="giger-gift-icon" alt="гиперзадка">
-              <span>Подарить гиперзадку</span>
-            </label>
+
+            <div class="giger-gift-box game-giger-box" id="gameGigerBox_${game.id}">
+              <label class="giger-gift-toggle game-giger-toggle">
+                <input type="checkbox" id="gameGigerCheckbox_${game.id}">
+                <img src="assets/giperzadka.png" class="giger-gift-icon" alt="гиперзадка">
+                <span>Подарить гиперзадку автору</span>
+              </label>
+            </div>
+
             <button class="pick-btn small game-comment-submit" data-gid="${game.id}">Отправить</button>
           </div>
         </div>
@@ -4919,7 +4950,8 @@ async function loadGameGigerState(game) {
   if (!box || !checkbox) return;
   checkbox.checked = false;
   box.classList.remove("hidden");
-  if (!currentIdentity || !game.owner_code || game.owner_code === currentIdentity.code) {
+  if (!currentIdentity) return;
+  if (game.owner_code && game.owner_code === currentIdentity.code) {
     box.classList.add("hidden");
     return;
   }

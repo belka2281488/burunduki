@@ -2834,11 +2834,36 @@ main {
   position: relative;
   border: 2px solid transparent;
   border-radius: 8px;
+  /* Гиперзадка: заметный радужный фон, но с достаточно тёмным
+     слоем сверху, чтобы белый текст всегда хорошо читался. */
   background-image:
-    linear-gradient(rgba(30, 18, 8, 0.9), rgba(30, 18, 8, 0.9)),
-    linear-gradient(120deg, #ff5f6d, #ffc371, #47e08f, #33c6ff, #a86bff, #ff5f6d);
+    linear-gradient(135deg, rgba(55, 30, 70, 0.88), rgba(20, 55, 70, 0.88)),
+    linear-gradient(120deg, #ff4d6d 0%, #ffb347 20%, #ffe66d 35%, #45e08a 52%, #38c8ff 68%, #9b6cff 84%, #ff4d9a 100%);
   background-origin: border-box;
   background-clip: padding-box, border-box;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.12), 0 3px 12px rgba(70,40,100,0.16);
+}
+
+/* В подаренном комментарии все основные элементы принудительно светлые,
+   чтобы текст не терялся на радужном фоне. */
+.game-comment-item.comment-item-gifted .game-comment-author,
+.game-comment-item.comment-item-gifted .comment-author {
+  color: #ffffff;
+}
+
+.game-comment-item.comment-item-gifted .game-comment-time,
+.game-comment-item.comment-item-gifted .comment-time {
+  color: rgba(255,255,255,0.78);
+}
+
+.game-comment-item.comment-item-gifted .game-comment-text,
+.game-comment-item.comment-item-gifted .comment-text {
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.55);
+}
+
+.game-comment-item.comment-item-gifted .comment-reply-tag {
+  color: rgba(255,255,255,0.78);
 }
 .game-comment-item.comment-item-reply {
   margin-left: 20px;
@@ -2891,18 +2916,37 @@ main {
 }
 
 .game-comment-form {
-  display: flex;
-  gap: 8px;
-  align-items: flex-end;
+  display: block;
+  width: 100%;
 }
 
+/* Игровая форма комментария должна быть такой же вертикальной,
+   как формы комментариев фото/видео/текста. Иначе длинная строка
+   "Подарить гиперзадку автору" сжимает textarea почти до нуля. */
 .game-comment-input {
-  flex: 1;
-  min-height: 52px;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 78px;
+  margin: 0 0 8px;
+  box-sizing: border-box;
   resize: vertical;
 }
 
-.game-comment-submit { flex-shrink: 0; }
+.game-giger-box {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.game-giger-toggle {
+  margin-bottom: 8px;
+}
+
+.game-comment-submit {
+  display: block;
+  width: auto;
+  margin-left: 0;
+}
 
 
 /* ===== КОД ВХОДА ===== */

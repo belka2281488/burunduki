@@ -2412,3 +2412,470 @@ main {
     margin-top: 6px;
   }
 }
+
+/* ================================================================
+   РАЗДЕЛ ИГР
+   ================================================================ */
+
+.gallery-games {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+  padding: 10px 0 40px;
+}
+
+.game-card {
+  background: #fff8f0;
+  border: 1.5px solid #e8d5b8;
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: box-shadow 0.18s, transform 0.18s;
+  position: relative;
+}
+
+.game-card:hover {
+  box-shadow: 0 6px 24px rgba(160, 82, 45, 0.15);
+  transform: translateY(-2px);
+}
+
+.game-card-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 18px 12px;
+}
+
+.game-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  object-fit: cover;
+  background: linear-gradient(135deg, #a0522d 0%, #d4845a 100%);
+  flex-shrink: 0;
+  border: 2px solid #e8d5b8;
+}
+
+.game-icon-placeholder {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #a0522d 0%, #d4845a 100%);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+}
+
+.game-card-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.game-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #3b2a1a;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.game-author {
+  font-size: 0.8rem;
+  color: #a0522d;
+  font-weight: 600;
+}
+
+.game-badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 5px;
+}
+
+.game-badge {
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.game-badge-version {
+  background: rgba(160, 82, 45, 0.12);
+  color: #a0522d;
+}
+
+.game-badge-platform {
+  background: rgba(52, 152, 219, 0.12);
+  color: #2980b9;
+}
+
+.game-desc {
+  padding: 0 18px 14px;
+  font-size: 0.88rem;
+  color: #6b5040;
+  line-height: 1.5;
+  flex: 1;
+}
+
+.game-card-footer {
+  padding: 12px 18px 16px;
+  border-top: 1px solid #e8d5b8;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.game-download-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #a0522d;
+  color: #fff;
+  border: none;
+  border-radius: 24px;
+  padding: 10px 18px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  text-decoration: none;
+}
+
+.game-download-btn:hover {
+  background: #8a4426;
+  transform: scale(1.02);
+}
+
+.game-download-btn:active {
+  transform: scale(0.98);
+}
+
+.game-download-btn svg {
+  flex-shrink: 0;
+}
+
+.game-delete-btn {
+  background: none;
+  border: 1.5px solid #e8d5b8;
+  border-radius: 50%;
+  width: 34px;
+  height: 34px;
+  cursor: pointer;
+  color: #c0756a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+  font-size: 1rem;
+}
+
+.game-delete-btn:hover {
+  background: #fde8e8;
+  border-color: #c0756a;
+}
+
+.games-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 60px 20px;
+  color: #8a6a4a;
+  font-size: 1.05rem;
+}
+
+@media (max-width: 600px) {
+  .gallery-games {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- Иконка upload в моdale --- */
+.game-icon-upload-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.game-icon-preview {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  object-fit: cover;
+  border: 2px solid #e8d5b8;
+}
+
+.game-icon-preview.hidden { display: none; }
+
+.modal-divider {
+  border: none;
+  border-top: 1px solid #e8d5b8;
+  margin: 12px 0 8px;
+}
+
+.modal-section-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #a0522d;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+
+/* --- Версии внутри карточки --- */
+.game-versions-block {
+  padding: 12px 18px 16px;
+  border-top: 1px solid #e8d5b8;
+}
+
+.game-versions-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #a0522d;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+
+.game-version-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.game-ver-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #8a6a4a;
+  min-width: 36px;
+}
+
+.game-ver-note {
+  font-size: 0.78rem;
+  color: #a08060;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.game-ver-del {
+  background: none;
+  border: none;
+  color: #c0756a;
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 2px 4px;
+  border-radius: 4px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.game-ver-del:hover { background: #fde8e8; }
+
+.game-add-ver-btn {
+  margin-top: 8px;
+  background: transparent;
+  border: 1.5px dashed #d8b997;
+  color: #a0522d;
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.15s;
+  width: 100%;
+}
+
+.game-add-ver-btn:hover { background: rgba(160,82,45,0.07); }
+
+.game-no-versions {
+  font-size: 0.82rem;
+  color: #b8a090;
+  margin-bottom: 6px;
+}
+
+/* кнопки-действия в хедере карточки */
+.game-card-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+  align-self: flex-start;
+}
+
+.game-card-header .game-delete-btn,
+.game-card-header .game-edit-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 4px;
+  border-radius: 6px;
+}
+
+.game-card-header .game-delete-btn { color: #c0756a; }
+.game-card-header .game-edit-btn   { color: #7a8fa6; }
+
+.game-card-header .game-delete-btn:hover { background: #fde8e8; }
+.game-card-header .game-edit-btn:hover   { background: #e8eef5; }
+
+/* --- Поиск игр --- */
+.game-search-row {
+  display: flex;
+  gap: 8px;
+  padding: 4px 0 4px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.game-author-select {
+  flex: 0 0 auto;
+  min-width: 130px;
+}
+
+/* --- Тег-фильтр бар (стиль = category-tabs) --- */
+.game-tag-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+
+.game-tag-filter-btn {
+  background: transparent;
+  border: 1.5px solid #d8b997;
+  color: #8a6a4a;
+  padding: 6px 14px;
+  border-radius: 18px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.game-tag-filter-btn:hover { border-color: #a0522d; }
+.game-tag-filter-btn.active { background: #a0522d; border-color: #a0522d; color: #fff; }
+
+/* --- Теги на карточке --- */
+.game-tags-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 18px 12px;
+}
+
+.game-tag {
+  background: rgba(160,82,45,0.1);
+  color: #a0522d;
+  font-size: 0.76rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 12px;
+}
+
+/* --- Мета строка (дата + скачивания) --- */
+.game-meta-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.game-meta-date, .game-meta-downloads {
+  font-size: 0.75rem;
+  color: #a08060;
+}
+
+/* --- Комментарии --- */
+.game-comments-block {
+  border-top: 1px solid #e8d5b8;
+}
+
+.game-comments-toggle {
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 12px 18px;
+  text-align: left;
+  cursor: pointer;
+  color: #8a6a4a;
+  font-size: 0.87rem;
+  font-weight: 600;
+  transition: background 0.15s;
+}
+
+.game-comments-toggle:hover { background: rgba(160,82,45,0.05); }
+
+.game-comments-count { color: #a0522d; margin-left: 4px; }
+
+.game-comments-body { padding: 0 18px 14px; }
+
+.game-comments-list { margin-bottom: 10px; }
+
+.game-comments-loading, .game-comments-empty {
+  font-size: 0.83rem;
+  color: #b8a090;
+  padding: 6px 0;
+}
+
+.game-comment-item {
+  padding: 8px 0;
+  border-bottom: 1px solid #f0e4d0;
+}
+.game-comment-item:last-child { border-bottom: none; }
+
+.game-comment-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.game-comment-author {
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: #a0522d;
+}
+
+.game-comment-time {
+  font-size: 0.75rem;
+  color: #b8a090;
+  flex: 1;
+}
+
+.game-comment-del {
+  background: none;
+  border: none;
+  color: #c0756a;
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+.game-comment-del:hover { background: #fde8e8; }
+
+.game-comment-text {
+  font-size: 0.85rem;
+  color: #3b2a1a;
+  line-height: 1.45;
+}
+
+.game-comment-form {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.game-comment-input {
+  flex: 1;
+  min-height: 52px;
+  resize: vertical;
+}
+
+.game-comment-submit { flex-shrink: 0; }

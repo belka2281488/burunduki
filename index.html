@@ -37,6 +37,7 @@
     <button id="tabPhoto" class="tab-btn active">🖼️ Фото</button>
     <button id="tabVideo" class="tab-btn">🎬 Видео</button>
     <button id="tabText" class="tab-btn">📝 Тексты</button>
+    <button id="tabGames" class="tab-btn">🎮 Игры</button>
   </div>
 
   <div class="search-wrap">
@@ -51,13 +52,15 @@
   </div>
 
   <div id="filterPanel" class="filter-panel hidden">
-    <div class="filter-panel-row">
+    <!-- Строка для фото/видео/текстов -->
+    <div class="filter-panel-row" id="filterRowAuthor">
       <label class="filter-panel-label">Автор</label>
       <select id="authorFilter" class="filter-select">
         <option value="all">Все авторы</option>
       </select>
     </div>
-    <div class="filter-panel-row">
+
+    <div class="filter-panel-row" id="filterRowSort">
       <label class="filter-panel-label">Сортировка</label>
       <select id="sortSelect" class="filter-select">
         <option value="date_desc">Сначала новые</option>
@@ -69,6 +72,25 @@
         <option value="rating_count_desc">Больше всего оценок</option>
       </select>
     </div>
+
+    <!-- Строки только для игр -->
+    <div class="filter-panel-row hidden" id="filterRowGameAuthor">
+      <label class="filter-panel-label">Автор</label>
+      <select id="gameAuthorFilter" class="filter-select">
+        <option value="all">Все авторы</option>
+      </select>
+    </div>
+
+    <div class="filter-panel-row hidden" id="filterRowGameSort">
+      <label class="filter-panel-label">Сортировка</label>
+      <select id="gameSortSelect" class="filter-select">
+        <option value="date_desc">Сначала новые</option>
+        <option value="date_asc">Сначала старые</option>
+        <option value="name_asc">Имя: А → Я</option>
+        <option value="name_desc">Имя: Я → А</option>
+        <option value="downloads_desc">Больше всего скачиваний</option>
+      </select>
+    </div>
   </div>
 
   <div class="category-tabs" id="categoryTabs"></div>
@@ -77,12 +99,14 @@
     <button id="uploadPhotoBtn" class="pick-btn">➕ Добавить бурундука</button>
     <button id="uploadVideoBtn" class="pick-btn hidden">➕ Добавить видео</button>
     <button id="uploadTextBtn" class="pick-btn hidden">📝 Добавить текст</button>
+    <button id="uploadGameBtn" class="pick-btn hidden">🎮 Добавить игру</button>
     <div id="status" class="status">Загружаю галерею...</div>
   </div>
 
   <div id="galleryPhoto" class="gallery"></div>
   <div id="galleryVideo" class="gallery hidden"></div>
   <div id="galleryText" class="gallery gallery-text hidden"></div>
+  <div id="galleryGames" class="gallery gallery-games hidden"></div>
 </main>
 
 <!-- Страница профиля автора -->
@@ -575,6 +599,63 @@
         </div>
         <button id="textCommentSubmit" class="pick-btn small">Отправить</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Модал добавления игры -->
+<div id="gameModal" class="modal">
+  <div class="modal-box">
+    <h3>🎮 Добавить игру</h3>
+    <div class="game-icon-upload-row">
+      <img id="gameIconPreview" class="game-icon-preview hidden" src="" alt="">
+      <button id="gameIconPickBtn" type="button" class="tool-btn">📁 Выбрать иконку</button>
+      <input type="file" id="gameIconFileInput" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none">
+    </div>
+    <input type="text" id="gameTitle" class="modal-input" placeholder="Название игры" maxlength="80">
+    <textarea id="gameDesc" class="modal-input modal-textarea" placeholder="Описание игры" maxlength="400"></textarea>
+    <input type="text" id="gameAuthor" class="modal-input" placeholder="Автор (пусто = твоё имя)">
+    <input type="text" id="gameTags" class="modal-input" placeholder="Теги через запятую: платформер, 2d, хоррор">
+    <hr class="modal-divider">
+    <div class="modal-section-label">Первая версия</div>
+    <input type="text" id="gameFirstVerUrl" class="modal-input" placeholder="Ссылка на Google Drive">
+    <input type="text" id="gameFirstVerNote" class="modal-input" placeholder="Примечание к версии (необязательно)">
+    <div class="modal-actions">
+      <button id="gameModalCancel" class="tool-btn">Отмена</button>
+      <button id="gameModalSave" class="pick-btn small">Добавить</button>
+    </div>
+  </div>
+</div>
+
+<!-- Модал редактирования игры -->
+<div id="editGameModal" class="modal">
+  <div class="modal-box">
+    <h3>✏️ Редактировать игру</h3>
+    <div class="game-icon-upload-row">
+      <img id="editGameIconPreview" class="game-icon-preview hidden" src="" alt="">
+      <button id="editGameIconPickBtn" type="button" class="tool-btn">📁 Сменить иконку</button>
+      <input type="file" id="editGameIconFileInput" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none">
+    </div>
+    <input type="text" id="editGameTitle" class="modal-input" placeholder="Название игры" maxlength="80">
+    <textarea id="editGameDesc" class="modal-input modal-textarea" placeholder="Описание игры" maxlength="400"></textarea>
+    <input type="text" id="editGameAuthor" class="modal-input" placeholder="Автор">
+    <input type="text" id="editGameTags" class="modal-input" placeholder="Теги через запятую: платформер, 2d, хоррор">
+    <div class="modal-actions">
+      <button id="editGameModalCancel" class="tool-btn">Отмена</button>
+      <button id="editGameModalSave" class="pick-btn small">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- Модал добавления версии -->
+<div id="addVerModal" class="modal">
+  <div class="modal-box modal-box-small">
+    <h3 id="addVerModalTitle">Новая версия</h3>
+    <input type="text" id="addVerUrl" class="modal-input" placeholder="Ссылка на Google Drive">
+    <input type="text" id="addVerNote" class="modal-input" placeholder="Примечание (необязательно)">
+    <div class="modal-actions">
+      <button id="addVerModalCancel" class="tool-btn">Отмена</button>
+      <button id="addVerModalSave" class="pick-btn small">Добавить</button>
     </div>
   </div>
 </div>

@@ -963,6 +963,144 @@ async function deleteText(text) {
 const textSearchInput = document.getElementById("textSearch");
 if (textSearchInput) textSearchInput.addEventListener("input", renderTexts);
 
+/* ==========================================================
+   ИГРЫ
+   ========================================================== */
+const ADMIN_GAMES_TABLE        = "burunduk_games";
+const ADMIN_GAME_TAGS_TABLE    = "burunduk_game_tags";
+const ADMIN_GAME_VERSIONS_TABLE = "burunduk_game_versions";
+const ADMIN_GAME_COMMENTS_TABLE = "burunduk_game_comments";
+const ADMIN_GAME_DOWNLOADS_TABLE = "burunduk_game_downloads";
+
+let allAdminGames = [];
+let allAdminGameTags = [];
+
+async function loadAdminGames() {
+  const gamesEl = document.getElementById("gamesList");
+  const tagsEl  = document.getElementById("gameTagsList");
+  if (!gamesEl || !tagsEl) return;
+
+  gamesEl.innerHTML = "Загружаю...";
+  tagsEl.innerHTML  = "Загружаю...";
+
+  const [gamesRes, tagsRes] = await Promise.all([
+    db.from(ADMIN_GAMES_TABLE)
+      .select(`*, ${ADMIN_GAME_TAGS_TABLE}(*), ${ADMIN_GAME_VERSIONS_TABLE}(*)`)
+      .order("created_at", { ascending: false }),
+    db.from(ADMIN_GAME_TAGS_TABLE).select("tag").order("tag"),
+  ]);
+
+  if (gamesRes.error) { gamesEl.innerHTML = "Ошибка: " + gamesRes.error.message; return; }
+  if (tagsRes.error)  { tagsEl.innerHTML  = "Ошибка: " + tagsRes.error.message;  return; }
+
+  allAdminGames = (gamesRes.data || []).map(g => ({
+    ...g,
+    tags: (g[ADMIN_GAME_TAGS_TABLE] || []).map(t => t.tag),
+    versionCount: (g[ADMIN_GAME_VERSIONS_TABLE] || []).length,
+  }));
+
+  allAdminGameTags = [...new Set((tagsRes.data || []).map(r => r.tag))].sort();
+
+  renderAdminGames();
+  renderAdminGameTags();
+}
+
+function renderAdminGames() {
+  const el = document.getElementById("gamesList");
+  if (!el) return;
+  const q = (document.getElementById("gameAdminSearch")?.value || "").trim().toLowerCase();
+  const filtered = q
+    ? allAdminGames.filter(g =>
+        (g.title || "").toLowerCase().includes(q) ||
+        (g.author || "").toLowerCase().includes(q) ||
+        g.tags.some(t => t.toLowerCase().includes(q))
+      )
+    : allAdminGames;
+
+  if (!filtered.length) { el.innerHTML = "<p>Игр нет</p>"; return; }
+  el.innerHTML = "";
+
+  filtered.forEach(game => {
+    const row = document.createElement("div");
+    row.className = "admin-row";
+    const tagsStr = game.tags.length ? game.tags.map(t => "#" + t).join(", ") : "—";
+    row.innerHTML = `
+      <div class="admin-row-info">
+        <div class="admin-row-title">${escapeHtml(game.title || "Без названия")}</div>
+        <div class="admin-row-sub">
+          автор: ${escapeHtml(game.author || "—")} ·
+          ${new Date(game.created_at).toLocaleDateString("ru")} ·
+          версий: ${game.versionCount}
+        </div>
+        <div class="admin-row-sub">теги: ${escapeHtml(tagsStr)}</div>
+        ${game.description ? `<div class="admin-row-preview">${escapeHtml(game.description.slice(0, 120))}${game.description.length > 120 ? "…" : ""}</div>` : ""}
+      </div>
+      <div class="admin-row-actions">
+        <button class="tool-btn danger" data-delete>Удалить игру</button>
+      </div>
+    `;
+    row.querySelector("[data-delete]").addEventListener("click", () => deleteAdminGame(game));
+    el.appendChild(row);
+  });
+}
+
+function renderAdminGameTags() {
+  const el = document.getElementById("gameTagsList");
+  if (!el) return;
+  if (!allAdminGameTags.length) { el.innerHTML = "<p>Тегов нет</p>"; return; }
+  el.innerHTML = "";
+
+  allAdminGameTags.forEach(tag => {
+    const count = allAdminGames.filter(g => g.tags.includes(tag)).length;
+    const row = document.createElement("div");
+    row.className = "admin-row";
+    row.innerHTML = `
+      <div class="admin-row-info">
+        <div class="admin-row-title">#${escapeHtml(tag)}</div>
+        <div class="admin-row-sub">используется в ${count} ${count === 1 ? "игре" : count < 5 ? "играх" : "играх"}</div>
+      </div>
+      <div class="admin-row-actions">
+        <button class="tool-btn danger" data-deltag>Удалить тег из всех игр</button>
+      </div>
+    `;
+    row.querySelector("[data-deltag]").addEventListener("click", () => deleteAdminGameTag(tag));
+    el.appendChild(row);
+  });
+}
+
+async function deleteAdminGame(game) {
+  const ok = await askConfirm(
+    "Удалить игру?",
+    `«${game.title || "Без названия"}» (автор: ${game.author || "—"}) и все её версии, теги и комментарии будут удалены безвозвратно.`
+  );
+  if (!ok) return;
+  // Удаляем связанные данные
+  await db.from(ADMIN_GAME_TAGS_TABLE).delete().eq("game_id", game.id);
+  await db.from(ADMIN_GAME_VERSIONS_TABLE).delete().eq("game_id", game.id);
+  await db.from(ADMIN_GAME_COMMENTS_TABLE).delete().eq("game_id", game.id);
+  await db.from(ADMIN_GAME_DOWNLOADS_TABLE).delete().eq("game_id", game.id);
+  const { error } = await db.from(ADMIN_GAMES_TABLE).delete().eq("id", game.id);
+  if (error) { showToast("Ошибка: " + error.message); return; }
+  showToast("Игра удалена ✅");
+  await loadAdminGames();
+}
+
+async function deleteAdminGameTag(tag) {
+  const gamesWithTag = allAdminGames.filter(g => g.tags.includes(tag)).map(g => `«${g.title || "Без названия"}»`).join(", ");
+  const ok = await askConfirm(
+    `Удалить тег #${tag}?`,
+    `Тег будет удалён из ${gamesWithTag || "игр"}. Сами игры останутся.`
+  );
+  if (!ok) return;
+  const { error } = await db.from(ADMIN_GAME_TAGS_TABLE).delete().eq("tag", tag);
+  if (error) { showToast("Ошибка: " + error.message); return; }
+  showToast(`Тег #${tag} удалён ✅`);
+  await loadAdminGames();
+}
+
+const gameAdminSearchInput = document.getElementById("gameAdminSearch");
+if (gameAdminSearchInput) gameAdminSearchInput.addEventListener("input", renderAdminGames);
+
 /* ---------- Старт ---------- */
 async function boot() {
   if (!initSupabase()) return;
@@ -970,6 +1108,7 @@ async function boot() {
   await loadPhotos();
   await loadVideos();
   await loadTexts();
+  await loadAdminGames();
   renderUsers();
 }
 

@@ -62,12 +62,15 @@ const toast = document.getElementById("toast");
 const tabVideo = document.getElementById("tabVideo");
 const tabPhoto = document.getElementById("tabPhoto");
 const tabText = document.getElementById("tabText");
+const tabGames = document.getElementById("tabGames");
 const galleryPhoto = document.getElementById("galleryPhoto");
 const galleryVideo = document.getElementById("galleryVideo");
 const galleryText = document.getElementById("galleryText");
+const galleryGames = document.getElementById("galleryGames");
 const uploadPhotoBtn = document.getElementById("uploadPhotoBtn");
 const uploadVideoBtn = document.getElementById("uploadVideoBtn");
 const uploadTextBtn = document.getElementById("uploadTextBtn");
+const uploadGameBtn = document.getElementById("uploadGameBtn");
 const deleteModal = document.getElementById("deleteModal");
 const deleteCancel = document.getElementById("deleteCancel");
 const deleteConfirm = document.getElementById("deleteConfirm");
@@ -427,25 +430,59 @@ function initSupabase() {
 function switchTab(tab) {
   currentTab = tab;
   searchInput.value = "";
+  gameSearchQuery = [];
+  // Меняем плейсхолдер под вкладку
+  if (tab === "games") {
+    searchInput.placeholder = "🔍 Поиск по названию, #тегу...";
+  } else if (tab === "text") {
+    searchInput.placeholder = "🔍 Поиск по имени...";
+  } else {
+    searchInput.placeholder = "🔍 Поиск по имени...";
+  }
   tabVideo.classList.toggle("active", tab === "video");
   tabPhoto.classList.toggle("active", tab === "photo");
   if (tabText) tabText.classList.toggle("active", tab === "text");
+  if (tabGames) tabGames.classList.toggle("active", tab === "games");
   uploadVideoBtn.classList.toggle("hidden", tab !== "video");
   uploadPhotoBtn.classList.toggle("hidden", tab !== "photo");
   if (uploadTextBtn) uploadTextBtn.classList.toggle("hidden", tab !== "text");
+  if (uploadGameBtn) uploadGameBtn.classList.toggle("hidden", tab !== "games");
   galleryVideo.classList.toggle("hidden", tab !== "video");
   galleryPhoto.classList.toggle("hidden", tab !== "photo");
   if (galleryText) galleryText.classList.toggle("hidden", tab !== "text");
+  if (galleryGames) galleryGames.classList.toggle("hidden", tab !== "games");
 
-  renderCategoryTabs();
+  const isGames = tab === "games";
+  // filterPanel всегда закрываем при смене вкладки
+  const filterPanelEl = document.getElementById("filterPanel");
+  if (filterPanelEl) filterPanelEl.classList.add("hidden");
+  if (filterToggleBtn) filterToggleBtn.classList.remove("active");
+
+  // Переключаем строки фильтр-панели: обычные vs игровые
+  const filterRowAuthor     = document.getElementById("filterRowAuthor");
+  const filterRowSort       = document.getElementById("filterRowSort");
+  const filterRowGameAuthor = document.getElementById("filterRowGameAuthor");
+  const filterRowGameSort   = document.getElementById("filterRowGameSort");
+  if (filterRowAuthor)     filterRowAuthor.classList.toggle("hidden", isGames);
+  if (filterRowSort)       filterRowSort.classList.toggle("hidden", isGames);
+  if (filterRowGameAuthor) filterRowGameAuthor.classList.toggle("hidden", !isGames);
+  if (filterRowGameSort)   filterRowGameSort.classList.toggle("hidden", !isGames);
+
+  // categoryTabs скрываем для игр (у игр нет разделов — только теги, которые НЕ показываем в разделах)
+  const categoryTabsEl = document.getElementById("categoryTabs");
+  if (categoryTabsEl) categoryTabsEl.classList.toggle("hidden", isGames);
+
+  if (!isGames) renderCategoryTabs();
   if (tab === "video") loadVideos();
   else if (tab === "text") loadTexts();
+  else if (tab === "games") loadGames();
   else loadPhotos();
 }
 
 tabVideo.addEventListener("click", () => switchTab("video"));
 tabPhoto.addEventListener("click", () => switchTab("photo"));
 if (tabText) tabText.addEventListener("click", () => switchTab("text"));
+if (tabGames) tabGames.addEventListener("click", () => switchTab("games"));
 
 /* ==================================================================
    ПОИСК ПО ИМЕНИ
@@ -455,6 +492,14 @@ function applySearch() {
 
   if (currentTab === "text") {
     applyTextSearch();
+    return;
+  }
+
+  if (currentTab === "games") {
+    // Передаём запрос в фильтр игр
+    const rawTokens = query ? query.split(",").map(t => t.trim().replace(/^#/, "")).filter(Boolean) : [];
+    gameSearchQuery = rawTokens;
+    renderGames();
     return;
   }
 
@@ -4125,3 +4170,643 @@ function startPolling() {
 // Запускаем всё при старте
 initRealtime();
 startPolling();
+
+
+
+/* ==================================================================
+   РАЗДЕЛ ИГР
+   ================================================================== */
+
+const GAMES_TABLE        = "burunduk_games";
+const GAME_VERSIONS_TABLE = "burunduk_game_versions";
+const GAME_COMMENTS_TABLE = "burunduk_game_comments";
+const GAME_DOWNLOADS_TABLE = "burunduk_game_downloads";
+const GAME_TAGS_TABLE    = "burunduk_game_tags";
+
+let allGames = [];
+let allGameTags = [];
+let gameSearchQuery = [];
+let gameAuthorFilter = "all";
+let gameSortMode = "date_desc";
+
+/* --- Drive URL → прямая ссылка --- */
+function parseDriveUrl(url) {
+  if (!url) return null;
+  const m = url.match(/\/d\/([a-zA-Z0-9_-]+)/) || url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (m) return `https://drive.google.com/uc?export=download&id=${m[1]}`;
+  return url;
+}
+
+function esc(str) {
+  if (!str) return "";
+  return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+function formatGameDate(dateStr) {
+  if (!dateStr) return "";
+  return new Date(dateStr).toLocaleDateString("ru-RU", { day:"numeric", month:"long", year:"numeric" });
+}
+
+function checkIsGiger() {
+  const badge = document.getElementById("whoAmIGigers");
+  return badge && badge.textContent.trim() !== "";
+}
+
+function showGameToast(msg) {
+  const t = document.getElementById("toast");
+  if (!t) return;
+  t.textContent = msg;
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 2800);
+}
+
+/* ------------------------------------------------------------------ */
+/* ЗАГРУЗКА                                                             */
+/* ------------------------------------------------------------------ */
+async function loadGames() {
+  if (!db) return;
+  galleryGames.innerHTML = "<div class='games-empty'>Загружаю игры...</div>";
+  try {
+    const gamesRes = await db.from(GAMES_TABLE)
+      .select(`*, ${GAME_VERSIONS_TABLE}(*), ${GAME_TAGS_TABLE}(*), ${GAME_DOWNLOADS_TABLE}(count)`)
+      .order("created_at", { ascending: false });
+    if (gamesRes.error) throw gamesRes.error;
+
+    allGames = (gamesRes.data || []).map(g => ({
+      ...g,
+      versions: (g[GAME_VERSIONS_TABLE] || [])
+        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at)),
+      tags: (g[GAME_TAGS_TABLE] || []).map(t => t.tag),
+      downloadCount: Array.isArray(g[GAME_DOWNLOADS_TABLE])
+        ? g[GAME_DOWNLOADS_TABLE].length
+        : (g[GAME_DOWNLOADS_TABLE]?.count ?? 0),
+    }));
+
+    fillGameAuthorFilter();
+    renderGames();
+  } catch (e) {
+    galleryGames.innerHTML = `<div class='games-empty'>Ошибка: ${e.message}</div>`;
+  }
+}
+
+function fillGameAuthorFilter() {
+  const sel = document.getElementById("gameAuthorFilter");
+  if (!sel) return;
+  const prev = sel.value || "all";
+  const authors = new Map();
+  allGames.forEach(g => { if (g.author) authors.set(g.author, g.author); });
+  sel.innerHTML = `<option value="all">Все авторы</option>`;
+  [...authors.keys()].sort((a, b) => a.localeCompare(b, "ru")).forEach(name => {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    sel.appendChild(opt);
+  });
+  sel.value = [...authors.keys()].includes(prev) || prev === "all" ? prev : "all";
+}
+
+/* ------------------------------------------------------------------ */
+/* ТЕГ-ФИЛЬТР УБРАН — теги игр больше не показываются как разделы      */
+/* ------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------ */
+/* ПОИСК / ФИЛЬТР ИГРЫ                                                 */
+/* ------------------------------------------------------------------ */
+function applyGameFilters() {
+  const raw = (searchInput?.value || "").trim().toLowerCase();
+  gameSearchQuery = raw ? raw.split(",").map(t => t.trim().replace(/^#/, "")).filter(Boolean) : [];
+  gameAuthorFilter = document.getElementById("gameAuthorFilter")?.value || "all";
+  gameSortMode = document.getElementById("gameSortSelect")?.value || "date_desc";
+  renderGames();
+}
+
+// Слушатели для фильтров игр в панели
+(function() {
+  const gaf = document.getElementById("gameAuthorFilter");
+  const gss = document.getElementById("gameSortSelect");
+  if (gaf) gaf.addEventListener("change", applyGameFilters);
+  if (gss) gss.addEventListener("change", applyGameFilters);
+})();
+
+/* ------------------------------------------------------------------ */
+/* РЕНДЕР КАРТОЧЕК                                                      */
+/* ------------------------------------------------------------------ */
+function autoVersionLabel(i) { return `v1.${i}`; }
+
+function renderGames() {
+  let games = allGames;
+
+  // каждый токен из поисковой строки должен совпасть с названием, описанием ИЛИ каким-либо тегом
+  if (gameSearchQuery.length) {
+    games = games.filter(g =>
+      gameSearchQuery.every(qt =>
+        (g.title || "").toLowerCase().includes(qt) ||
+        (g.description || "").toLowerCase().includes(qt) ||
+        g.tags.some(t => t.toLowerCase().includes(qt))
+      )
+    );
+  }
+
+  // фильтр по автору
+  if (gameAuthorFilter && gameAuthorFilter !== "all") {
+    games = games.filter(g => g.author === gameAuthorFilter);
+  }
+
+  // сортировка
+  switch (gameSortMode) {
+    case "date_asc":
+      games = [...games].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+      break;
+    case "name_asc":
+      games = [...games].sort((a, b) => (a.title || "").localeCompare(b.title || "", "ru"));
+      break;
+    case "name_desc":
+      games = [...games].sort((a, b) => (b.title || "").localeCompare(a.title || "", "ru"));
+      break;
+    case "downloads_desc":
+      games = [...games].sort((a, b) => (b.downloadCount || 0) - (a.downloadCount || 0));
+      break;
+    default: // date_desc
+      games = [...games].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  }
+
+  if (!games.length) {
+    galleryGames.innerHTML = "<div class='games-empty'>🎮 " + (gameSearchQuery.length || gameAuthorFilter !== "all" ? "Ничего не найдено" : "Пока игр нет. Добавь первую!") + "</div>";
+    return;
+  }
+  galleryGames.innerHTML = "";
+  const isGiger = checkIsGiger();
+
+  games.forEach(game => {
+    const card = document.createElement("div");
+    card.className = "game-card";
+
+    const iconHtml = game.icon_url
+      ? `<img class="game-icon" src="${esc(game.icon_url)}" alt="icon"
+            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+         <div class="game-icon-placeholder" style="display:none">🎮</div>`
+      : `<div class="game-icon-placeholder">🎮</div>`;
+
+    const tagsHtml = game.tags.length
+      ? game.tags.map(t => `<span class="game-tag">#${esc(t)}</span>`).join("")
+      : "";
+
+    const versionsHtml = game.versions.length
+      ? game.versions.map((v, i) => {
+          const dl = parseDriveUrl(v.drive_url);
+          const delBtn = isGiger
+            ? `<button class="game-ver-del" data-vid="${v.id}" title="Удалить версию">✕</button>`
+            : "";
+          return `<div class="game-version-row">
+            <span class="game-ver-label">${autoVersionLabel(i)}</span>
+            ${v.note ? `<span class="game-ver-note">${esc(v.note)}</span>` : ""}
+            <a class="game-download-btn" href="${dl}" data-game-id="${game.id}"
+               download target="_blank">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                <path d="M8 1v9M8 10l-3-3M8 10l3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M2 13h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+              Скачать
+            </a>
+            ${delBtn}
+          </div>`;
+        }).join("")
+      : `<div class="game-no-versions">Нет версий</div>`;
+
+    const addVerBtn = isGiger
+      ? `<button class="game-add-ver-btn" data-gid="${game.id}">+ Добавить версию</button>`
+      : "";
+
+    const delGameBtn = isGiger
+      ? `<button class="game-delete-btn" data-id="${game.id}" title="Удалить">🗑️</button>`
+      : "";
+    const editGameBtn = isGiger
+      ? `<button class="game-edit-btn" data-id="${game.id}" title="Редактировать">✏️</button>`
+      : "";
+
+    card.innerHTML = `
+      <div class="game-card-header">
+        ${iconHtml}
+        <div class="game-card-meta">
+          <div class="game-title">${esc(game.title)}</div>
+          <div class="game-author">by ${esc(game.author || "Бурундук")}</div>
+          <div class="game-meta-row">
+            <span class="game-meta-date">📅 ${formatGameDate(game.created_at)}</span>
+            <span class="game-meta-downloads">⬇️ ${game.downloadCount}</span>
+          </div>
+        </div>
+        <div class="game-card-actions">
+          ${editGameBtn}
+          ${delGameBtn}
+        </div>
+      </div>
+      ${game.description ? `<div class="game-desc">${esc(game.description)}</div>` : ""}
+      ${tagsHtml ? `<div class="game-tags-row">${tagsHtml}</div>` : ""}
+      <div class="game-versions-block">
+        <div class="game-versions-title">Версии</div>
+        ${versionsHtml}
+        ${addVerBtn}
+      </div>
+      <div class="game-comments-block" id="gameComments_${game.id}">
+        <button class="game-comments-toggle" data-gid="${game.id}">
+          💬 Комментарии <span class="game-comments-count" id="gameComCount_${game.id}"></span>
+        </button>
+        <div class="game-comments-body hidden" id="gameCommentsBody_${game.id}">
+          <div class="game-comments-list" id="gameComList_${game.id}"></div>
+          <div class="game-comment-form">
+            <textarea class="modal-input modal-textarea game-comment-input"
+              id="gameComInput_${game.id}" placeholder="Написать комментарий..."></textarea>
+            <button class="pick-btn small game-comment-submit" data-gid="${game.id}">Отправить</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // события
+    card.querySelectorAll(".game-ver-del").forEach(btn =>
+      btn.addEventListener("click", () => deleteGameVersion(btn.dataset.vid)));
+    card.querySelectorAll(".game-add-ver-btn").forEach(btn =>
+      btn.addEventListener("click", () => openAddVersionModal(btn.dataset.gid, game.title)));
+    const dgb = card.querySelector(".game-delete-btn");
+    if (dgb) dgb.addEventListener("click", () => deleteGame(game.id));
+    const egb = card.querySelector(".game-edit-btn");
+    if (egb) egb.addEventListener("click", () => openEditGameModal(game));
+
+    // счётчик скачиваний
+    card.querySelectorAll(".game-download-btn").forEach(a => {
+      a.addEventListener("click", () => registerGameDownload(a.dataset.gameId));
+    });
+
+    // комментарии
+    const toggleBtn = card.querySelector(".game-comments-toggle");
+    toggleBtn.addEventListener("click", () => toggleGameComments(game.id));
+
+    const submitBtn = card.querySelector(".game-comment-submit");
+    submitBtn.addEventListener("click", () => submitGameComment(game.id));
+
+    galleryGames.appendChild(card);
+
+    // загружаем счётчик комментов
+    loadGameCommentsCount(game.id);
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* СКАЧИВАНИЯ                                                           */
+/* ------------------------------------------------------------------ */
+async function registerGameDownload(gameId) {
+  if (!gameId || !db) return;
+  try {
+    await db.from(GAME_DOWNLOADS_TABLE).insert({ game_id: gameId });
+    // обновляем счётчик на карточке
+    const el = document.querySelector(`.game-meta-downloads[data-gid="${gameId}"]`);
+    // проще — перезагрузим тихо
+    const { data } = await db.from(GAME_DOWNLOADS_TABLE).select("count").eq("game_id", gameId).single();
+    const countEl = document.querySelector(`[data-game-id="${gameId}"]`)?.closest(".game-card")
+      ?.querySelector(".game-meta-downloads");
+    if (countEl && data) countEl.textContent = "⬇️ " + (data.count ?? "");
+  } catch {}
+}
+
+/* ------------------------------------------------------------------ */
+/* КОММЕНТАРИИ                                                          */
+/* ------------------------------------------------------------------ */
+async function loadGameCommentsCount(gameId) {
+  if (!db) return;
+  const { count } = await db.from(GAME_COMMENTS_TABLE)
+    .select("*", { count: "exact", head: true })
+    .eq("game_id", gameId);
+  const el = document.getElementById(`gameComCount_${gameId}`);
+  if (el) el.textContent = count ? `(${count})` : "";
+}
+
+async function toggleGameComments(gameId) {
+  const body = document.getElementById(`gameCommentsBody_${gameId}`);
+  if (!body) return;
+  const opening = body.classList.contains("hidden");
+  body.classList.toggle("hidden", !opening);
+  if (opening) await loadGameComments(gameId);
+}
+
+async function loadGameComments(gameId) {
+  const list = document.getElementById(`gameComList_${gameId}`);
+  if (!list || !db) return;
+  list.innerHTML = "<div class='game-comments-loading'>Загружаю...</div>";
+  const { data, error } = await db.from(GAME_COMMENTS_TABLE)
+    .select("*").eq("game_id", gameId).order("created_at", { ascending: true });
+  if (error || !data) { list.innerHTML = ""; return; }
+  if (!data.length) {
+    list.innerHTML = "<div class='game-comments-empty'>Комментариев пока нет</div>";
+    return;
+  }
+  list.innerHTML = data.map(c => `
+    <div class="game-comment-item">
+      <div class="game-comment-head">
+        <span class="game-comment-author">${esc(c.author_name || "аноним")}</span>
+        <span class="game-comment-time">${timeAgo(c.created_at)}</span>
+        ${checkIsGiger() ? `<button class="game-comment-del" data-cid="${c.id}" data-gid="${gameId}">✕</button>` : ""}
+      </div>
+      <div class="game-comment-text">${esc(c.text || "").replace(/\n/g,"<br>")}</div>
+    </div>
+  `).join("");
+
+  list.querySelectorAll(".game-comment-del").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      await db.from(GAME_COMMENTS_TABLE).delete().eq("id", btn.dataset.cid);
+      loadGameComments(btn.dataset.gid);
+      loadGameCommentsCount(btn.dataset.gid);
+    });
+  });
+}
+
+async function submitGameComment(gameId) {
+  const input = document.getElementById(`gameComInput_${gameId}`);
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) return;
+  const identity = currentIdentity || getIdentity();
+  const { error } = await db.from(GAME_COMMENTS_TABLE).insert({
+    game_id: gameId,
+    text,
+    author_name: identity ? identity.name : "аноним",
+    author_code: identity ? identity.code : null,
+  });
+  if (error) { showGameToast("Ошибка: " + error.message); return; }
+  input.value = "";
+  loadGameComments(gameId);
+  loadGameCommentsCount(gameId);
+}
+
+/* ------------------------------------------------------------------ */
+/* УДАЛЕНИЕ                                                             */
+/* ------------------------------------------------------------------ */
+async function deleteGame(id) {
+  if (!confirm("Удалить игру и все её данные?")) return;
+  await db.from(GAME_VERSIONS_TABLE).delete().eq("game_id", id);
+  await db.from(GAME_COMMENTS_TABLE).delete().eq("game_id", id);
+  await db.from(GAME_TAGS_TABLE).delete().eq("game_id", id);
+  await db.from(GAME_DOWNLOADS_TABLE).delete().eq("game_id", id);
+  const { error } = await db.from(GAMES_TABLE).delete().eq("id", id);
+  if (!error) loadGames(); else showGameToast("Ошибка: " + error.message);
+}
+
+async function deleteGameVersion(vid) {
+  if (!confirm("Удалить версию?")) return;
+  const { error } = await db.from(GAME_VERSIONS_TABLE).delete().eq("id", vid);
+  if (!error) loadGames(); else showGameToast("Ошибка: " + error.message);
+}
+
+/* ------------------------------------------------------------------ */
+/* МОДАЛ: ДОБАВЛЕНИЕ ИГРЫ                                              */
+/* ------------------------------------------------------------------ */
+let pickedGameIcon = null;
+
+const gameModal       = document.getElementById("gameModal");
+const gameModalCancel = document.getElementById("gameModalCancel");
+const gameModalSave   = document.getElementById("gameModalSave");
+const gameIconFileInput = document.getElementById("gameIconFileInput");
+const gameIconPreview   = document.getElementById("gameIconPreview");
+const gameIconPickBtn   = document.getElementById("gameIconPickBtn");
+
+if (uploadGameBtn) {
+  uploadGameBtn.addEventListener("click", () => {
+    ["gameTitle","gameDesc","gameAuthor","gameFirstVerUrl","gameFirstVerNote","gameTags"]
+      .forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
+    pickedGameIcon = null;
+    if (gameIconPreview) { gameIconPreview.src = ""; gameIconPreview.classList.add("hidden"); }
+    if (gameIconPickBtn) gameIconPickBtn.textContent = "📁 Выбрать иконку";
+    gameModal.classList.add("active");
+  });
+}
+
+if (gameIconPickBtn) gameIconPickBtn.addEventListener("click", () => gameIconFileInput && gameIconFileInput.click());
+
+if (gameIconFileInput) {
+  gameIconFileInput.addEventListener("change", () => {
+    const file = gameIconFileInput.files[0];
+    if (!file) return;
+    pickedGameIcon = file;
+    if (gameIconPreview) { gameIconPreview.src = URL.createObjectURL(file); gameIconPreview.classList.remove("hidden"); }
+    if (gameIconPickBtn) gameIconPickBtn.textContent = "✅ " + file.name;
+    gameIconFileInput.value = "";
+  });
+}
+
+if (gameModalCancel) gameModalCancel.addEventListener("click", () => gameModal.classList.remove("active"));
+if (gameModal) gameModal.addEventListener("click", e => { if (e.target === gameModal) gameModal.classList.remove("active"); });
+
+if (gameModalSave) {
+  gameModalSave.addEventListener("click", async () => {
+    const title      = document.getElementById("gameTitle").value.trim();
+    const firstVerUrl = document.getElementById("gameFirstVerUrl").value.trim();
+    if (!title)       { showGameToast("Введи название"); return; }
+    if (!firstVerUrl) { showGameToast("Добавь ссылку на первую версию"); return; }
+
+    gameModalSave.disabled = true;
+    gameModalSave.textContent = "Сохраняю...";
+
+    // загрузка иконки
+    let iconUrl = null;
+    if (pickedGameIcon) {
+      const ext  = pickedGameIcon.name.split(".").pop();
+      const path = `game-icons/${Date.now()}.${ext}`;
+      const { error: upErr } = await db.storage.from(BUCKET_NAME).upload(path, pickedGameIcon, { cacheControl: "3600", upsert: false });
+      if (!upErr) {
+        const { data: pub } = db.storage.from(BUCKET_NAME).getPublicUrl(path);
+        iconUrl = pub.publicUrl;
+      }
+    }
+
+    const whoAmI     = document.getElementById("whoAmI");
+    const authorInput = document.getElementById("gameAuthor").value.trim();
+    const author     = authorInput || (whoAmI ? whoAmI.textContent.trim() : "Бурундук");
+
+    const { data: newGame, error: gameErr } = await db.from(GAMES_TABLE).insert([{
+      title,
+      description: document.getElementById("gameDesc").value.trim() || null,
+      author: author || "Бурундук",
+      icon_url: iconUrl,
+    }]).select().single();
+
+    if (gameErr) {
+      showGameToast("Ошибка: " + gameErr.message);
+      gameModalSave.disabled = false;
+      gameModalSave.textContent = "Добавить";
+      return;
+    }
+
+    // первая версия
+    const note = document.getElementById("gameFirstVerNote").value.trim() || null;
+    await db.from(GAME_VERSIONS_TABLE).insert([{ game_id: newGame.id, drive_url: firstVerUrl, note }]);
+
+    // теги
+    const rawTags = document.getElementById("gameTags").value.trim();
+    if (rawTags) {
+      const tags = rawTags.split(",").map(t => t.trim().replace(/^#/, "").toLowerCase()).filter(Boolean).slice(0, 8);
+      if (tags.length) {
+        await db.from(GAME_TAGS_TABLE).insert(tags.map(tag => ({ game_id: newGame.id, tag })));
+      }
+    }
+
+    // гиперзадки
+    if (currentIdentity) {
+      await db.rpc("giger_add", { p_code: currentIdentity.code, p_name: currentIdentity.name, p_delta: 5 });
+      refreshMyGigerBalance();
+    }
+
+    gameModal.classList.remove("active");
+    gameModalSave.disabled = false;
+    gameModalSave.textContent = "Добавить";
+    showGameToast("Игра добавлена! +5 гиперзадок 🎮");
+    loadGames();
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* МОДАЛ: ДОБАВЛЕНИЕ ВЕРСИИ                                            */
+/* ------------------------------------------------------------------ */
+const addVerModal       = document.getElementById("addVerModal");
+const addVerModalCancel = document.getElementById("addVerModalCancel");
+const addVerModalSave   = document.getElementById("addVerModalSave");
+let addVerGameId = null;
+
+function openAddVersionModal(gameId, gameTitle) {
+  addVerGameId = gameId;
+  const titleEl = document.getElementById("addVerModalTitle");
+  if (titleEl) titleEl.textContent = "Новая версия: " + gameTitle;
+  const urlEl = document.getElementById("addVerUrl"); if (urlEl) urlEl.value = "";
+  const noteEl = document.getElementById("addVerNote"); if (noteEl) noteEl.value = "";
+  addVerModal.classList.add("active");
+}
+
+if (addVerModalCancel) addVerModalCancel.addEventListener("click", () => addVerModal.classList.remove("active"));
+if (addVerModal) addVerModal.addEventListener("click", e => { if (e.target === addVerModal) addVerModal.classList.remove("active"); });
+
+if (addVerModalSave) {
+  addVerModalSave.addEventListener("click", async () => {
+    const url = document.getElementById("addVerUrl").value.trim();
+    if (!url) { showGameToast("Введи ссылку"); return; }
+    addVerModalSave.disabled = true;
+    const note = document.getElementById("addVerNote").value.trim() || null;
+    const { error } = await db.from(GAME_VERSIONS_TABLE).insert([{ game_id: addVerGameId, drive_url: url, note }]);
+    addVerModalSave.disabled = false;
+    if (error) { showGameToast("Ошибка: " + error.message); return; }
+    addVerModal.classList.remove("active");
+    showGameToast("Версия добавлена!");
+    loadGames();
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* ПОИСК ИГР — события                                                 */
+/* ------------------------------------------------------------------ */
+(function() {
+  const gaf = document.getElementById("gameAuthorFilter");
+  if (gaf) gaf.addEventListener("change", applyGameFilters);
+})();
+
+/* ------------------------------------------------------------------ */
+/* МОДАЛ: РЕДАКТИРОВАНИЕ ИГРЫ                                          */
+/* ------------------------------------------------------------------ */
+let editGameId = null;
+let editGameCurrentIconUrl = null;
+let pickedEditGameIcon = null;
+
+const editGameModal       = document.getElementById("editGameModal");
+const editGameModalCancel = document.getElementById("editGameModalCancel");
+const editGameModalSave   = document.getElementById("editGameModalSave");
+const editGameIconFileInput = document.getElementById("editGameIconFileInput");
+const editGameIconPreview   = document.getElementById("editGameIconPreview");
+const editGameIconPickBtn   = document.getElementById("editGameIconPickBtn");
+
+function openEditGameModal(game) {
+  editGameId = game.id;
+  editGameCurrentIconUrl = game.icon_url || null;
+  pickedEditGameIcon = null;
+
+  document.getElementById("editGameTitle").value = game.title || "";
+  document.getElementById("editGameDesc").value = game.description || "";
+  document.getElementById("editGameAuthor").value = game.author || "";
+  document.getElementById("editGameTags").value = game.tags.join(", ");
+
+  if (editGameIconPreview) {
+    if (editGameCurrentIconUrl) {
+      editGameIconPreview.src = editGameCurrentIconUrl;
+      editGameIconPreview.classList.remove("hidden");
+    } else {
+      editGameIconPreview.src = "";
+      editGameIconPreview.classList.add("hidden");
+    }
+  }
+  if (editGameIconPickBtn) editGameIconPickBtn.textContent = "📁 Сменить иконку";
+  if (editGameModal) editGameModal.classList.add("active");
+}
+
+if (editGameIconPickBtn) editGameIconPickBtn.addEventListener("click", () => editGameIconFileInput && editGameIconFileInput.click());
+
+if (editGameIconFileInput) {
+  editGameIconFileInput.addEventListener("change", () => {
+    const file = editGameIconFileInput.files[0];
+    if (!file) return;
+    pickedEditGameIcon = file;
+    if (editGameIconPreview) { editGameIconPreview.src = URL.createObjectURL(file); editGameIconPreview.classList.remove("hidden"); }
+    if (editGameIconPickBtn) editGameIconPickBtn.textContent = "✅ " + file.name;
+    editGameIconFileInput.value = "";
+  });
+}
+
+if (editGameModalCancel) editGameModalCancel.addEventListener("click", () => editGameModal.classList.remove("active"));
+if (editGameModal) editGameModal.addEventListener("click", e => { if (e.target === editGameModal) editGameModal.classList.remove("active"); });
+
+if (editGameModalSave) {
+  editGameModalSave.addEventListener("click", async () => {
+    const title = document.getElementById("editGameTitle").value.trim();
+    if (!title) { showGameToast("Введи название"); return; }
+
+    editGameModalSave.disabled = true;
+    editGameModalSave.textContent = "Сохраняю...";
+
+    // загрузка новой иконки если выбрана
+    let iconUrl = editGameCurrentIconUrl;
+    if (pickedEditGameIcon) {
+      const ext = pickedEditGameIcon.name.split(".").pop();
+      const path = `game-icons/${Date.now()}.${ext}`;
+      const { error: upErr } = await db.storage.from(BUCKET_NAME).upload(path, pickedEditGameIcon, { cacheControl: "3600", upsert: false });
+      if (!upErr) {
+        const { data: pub } = db.storage.from(BUCKET_NAME).getPublicUrl(path);
+        iconUrl = pub.publicUrl;
+      }
+    }
+
+    // обновляем основные поля игры
+    const { error: updateErr } = await db.from(GAMES_TABLE).update({
+      title,
+      description: document.getElementById("editGameDesc").value.trim() || null,
+      author: document.getElementById("editGameAuthor").value.trim() || "Бурундук",
+      icon_url: iconUrl,
+    }).eq("id", editGameId);
+
+    if (updateErr) {
+      showGameToast("Ошибка: " + updateErr.message);
+      editGameModalSave.disabled = false;
+      editGameModalSave.textContent = "Сохранить";
+      return;
+    }
+
+    // пересохраняем теги: удаляем старые, вставляем новые
+    await db.from(GAME_TAGS_TABLE).delete().eq("game_id", editGameId);
+    const rawTags = document.getElementById("editGameTags").value.trim();
+    if (rawTags) {
+      const tags = rawTags.split(",").map(t => t.trim().replace(/^#/, "").toLowerCase()).filter(Boolean).slice(0, 8);
+      if (tags.length) {
+        await db.from(GAME_TAGS_TABLE).insert(tags.map(tag => ({ game_id: editGameId, tag })));
+      }
+    }
+
+    editGameModal.classList.remove("active");
+    editGameModalSave.disabled = false;
+    editGameModalSave.textContent = "Сохранить";
+    showGameToast("Игра обновлена! ✅");
+    loadGames();
+  });
+}

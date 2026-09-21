@@ -225,65 +225,106 @@
 <input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none">
 
 <!-- модалка "как тебя зовут" -->
+<!-- Модалка входа/регистрации -->
 <div id="nameModal" class="modal">
   <div class="modal-box modal-box-small">
-    <h3>Привет! 👋</h3>
-    <p class="modal-warning">Как тебя зовут? Это нужно, чтобы потом только ты мог редактировать своих загруженных бурундуков.</p>
-    <input type="text" id="nameInput" class="modal-input" placeholder="твоё имя">
-    <div id="emailLoginWrap" style="margin-top:12px;">
-      <p style="font-size:0.85em;color:var(--text-muted,#888);margin:0 0 6px;">Уже есть аккаунт? Введи свой email чтобы войти:</p>
-      <input type="email" id="emailLoginInput" class="modal-input" placeholder="твой email (необязательно)">
+
+    <!-- Экран 1: выбор пути -->
+    <div id="authScreen0">
+      <h3>Привет! 👋</h3>
+      <div class="modal-actions" style="flex-direction:column;gap:10px;">
+        <button id="authGoogleBtn" class="pick-btn small" style="display:flex;align-items:center;justify-content:center;gap:8px;">
+          <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+          Войти через Google
+        </button>
+        <div style="text-align:center;color:var(--text-muted,#888);font-size:0.83em;">или</div>
+        <button id="authGoRegister" class="pick-btn small" style="background:var(--bg-secondary,#1a1a1a);color:var(--text,#fff);border:1px solid var(--border,#333);">🐿️ Создать аккаунт без Google</button>
+        <button id="authGoLogin" class="link-btn">У меня уже есть аккаунт (без Google)</button>
+      </div>
     </div>
-    <div class="modal-actions">
-      <button id="nameConfirm" class="pick-btn small">Готово</button>
+
+    <!-- Экран 2: регистрация -->
+    <div id="authScreen1" style="display:none;">
+      <h3>Создать аккаунт</h3>
+      <label class="modal-label">Как тебя зовут?</label>
+      <input type="text" id="nameInput" class="modal-input" placeholder="твоё имя">
+      <label class="modal-label" style="margin-top:10px;">Email <span style="color:var(--text-muted,#888);font-weight:normal;">(необязательно, но рекомендуем — для входа с других устройств)</span></label>
+      <input type="email" id="regEmailInput" class="modal-input" placeholder="твой email">
+      <p id="regError" style="color:var(--danger,#eb5757);font-size:0.83em;margin-top:6px;display:none;"></p>
+      <div class="modal-actions" style="margin-top:14px;">
+        <button id="authBack0from1" class="link-btn">← назад</button>
+        <button id="nameConfirm" class="pick-btn small">Создать</button>
+      </div>
     </div>
+
+    <!-- Экран 3: вход по email -->
+    <div id="authScreen2" style="display:none;">
+      <h3>Войти в аккаунт</h3>
+      <label class="modal-label">Твой email</label>
+      <input type="email" id="loginEmailInput" class="modal-input" placeholder="email от аккаунта">
+      <p id="loginError" style="color:var(--danger,#eb5757);font-size:0.83em;margin-top:6px;display:none;"></p>
+      <p style="font-size:0.82em;color:var(--text-muted,#888);margin-top:8px;">Нет привязанного email? <button id="authGoCode" class="link-btn" style="font-size:inherit;">Войти по коду →</button></p>
+      <div class="modal-actions" style="margin-top:14px;">
+        <button id="authBack0from2" class="link-btn">← назад</button>
+        <button id="loginConfirm" class="pick-btn small">Войти</button>
+      </div>
+    </div>
+
+    <!-- Экран 4: вход по коду -->
+    <div id="authScreen3" style="display:none;">
+      <h3>Войти по коду</h3>
+      <p style="font-size:0.85em;color:var(--text-muted,#888);">Вставь свой код — он был показан при регистрации, или его можно найти в кнопке 🔑.</p>
+      <input type="text" id="restoreCodeInput" class="modal-input" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+      <p id="codeError" style="color:var(--danger,#eb5757);font-size:0.83em;margin-top:6px;display:none;"></p>
+      <div class="modal-actions" style="margin-top:14px;">
+        <button id="authBack2from3" class="link-btn">← назад</button>
+        <button id="restoreCodeBtn" class="pick-btn small">Войти</button>
+      </div>
+    </div>
+
   </div>
 </div>
 
-<!-- Модалка: добро пожаловать + показ кода после первой регистрации -->
+<!-- Модалка: аккаунт создан -->
 <div id="welcomeCodeModal" class="modal">
   <div class="modal-box modal-box-small">
     <h3>🎉 Аккаунт создан!</h3>
-    <p>Сохрани свой код входа — он нужен чтобы войти в аккаунт на другом устройстве или браузере. <strong>Не показывай его другим!</strong></p>
-    <div class="code-display-box">
-      <span id="welcomeCodeValue" style="font-family:monospace;font-size:0.85em;word-break:break-all;"></span>
+    <p id="welcomeEmailNote" style="display:none;font-size:0.88em;">Email привязан — можешь войти с любого устройства через него.</p>
+    <p id="welcomeNoEmailNote" style="font-size:0.88em;">Email не привязан — сохрани свой код, иначе потеряешь аккаунт на другом устройстве. Привязать email можно позже через кнопку 🔑.</p>
+    <div id="welcomeCodeBox" class="code-display-box">
+      <span id="welcomeCodeValue" style="font-family:monospace;font-size:0.82em;word-break:break-all;"></span>
       <button id="welcomeCodeCopy" class="link-btn" style="margin-left:8px;">📋 копировать</button>
     </div>
-    <p style="font-size:0.82em;color:var(--text-muted,#888);">Посмотреть код потом можно через кнопку 🔑 рядом с колокольчиком.</p>
-    <p style="font-size:0.82em;color:var(--text-muted,#888);">Также можно привязать email в настройках кода — тогда аккаунт будет восстанавливаться автоматически.</p>
     <div class="modal-actions">
       <button id="welcomeCodeClose" class="pick-btn small">Понятно!</button>
     </div>
   </div>
 </div>
 
-<!-- Модалка: мой код входа -->
+<!-- Модалка: кнопка 🔑 -->
 <div id="myCodeModal" class="modal">
   <div class="modal-box modal-box-small">
-    <h3>🔑 Мой код входа</h3>
-    <p style="font-size:0.88em;">Этот код — твой аккаунт. Сохрани его в надёжном месте.<br><strong>Никому не показывай и не передавай!</strong></p>
+    <h3>🔑 Мой аккаунт</h3>
+
+    <p style="font-size:0.88em;margin-bottom:4px;"><strong>📧 Email для входа</strong></p>
+    <div id="emailBindWrap">
+      <input type="email" id="emailBindInput" class="modal-input" placeholder="твой email">
+      <button id="emailBindSave" class="pick-btn small" style="margin-top:8px;">Сохранить</button>
+      <p id="emailBindStatus" style="font-size:0.82em;margin-top:6px;"></p>
+    </div>
+
+    <hr style="margin:14px 0;border-color:var(--border,#333);">
+    <p style="font-size:0.88em;margin-bottom:4px;"><strong>🔐 Секретный код</strong> — запасной способ войти</p>
     <div id="myCodeHidden">
       <button id="showMyCodeBtn" class="pick-btn small">👁 Показать код</button>
     </div>
     <div id="myCodeVisible" style="display:none;">
       <div class="code-display-box">
-        <span id="myCodeValue" style="font-family:monospace;font-size:0.82em;word-break:break-all;"></span>
+        <span id="myCodeValue" style="font-family:monospace;font-size:0.78em;word-break:break-all;"></span>
         <button id="myCodeCopy" class="link-btn" style="margin-left:8px;">📋 копировать</button>
       </div>
+      <p style="font-size:0.8em;color:var(--danger,#eb5757);margin-top:4px;">Никому не показывай!</p>
     </div>
-
-    <hr style="margin:14px 0;border-color:var(--border,#333);">
-    <p style="font-size:0.88em;margin-bottom:6px;"><strong>📧 Привязка email</strong> — чтобы войти в аккаунт с любого устройства:</p>
-    <div id="emailBindWrap">
-      <input type="email" id="emailBindInput" class="modal-input" placeholder="твой email">
-      <button id="emailBindSave" class="pick-btn small" style="margin-top:8px;">Привязать</button>
-      <p id="emailBindStatus" style="font-size:0.82em;margin-top:6px;"></p>
-    </div>
-
-    <hr style="margin:14px 0;border-color:var(--border,#333);">
-    <p style="font-size:0.88em;margin-bottom:6px;"><strong>🔄 Войти по коду</strong> — вставь код с другого устройства:</p>
-    <input type="text" id="restoreCodeInput" class="modal-input" placeholder="вставь свой owner_code">
-    <button id="restoreCodeBtn" class="pick-btn small" style="margin-top:8px;">Войти</button>
 
     <div class="modal-actions" style="margin-top:16px;">
       <button id="myCodeClose" class="link-btn">закрыть</button>

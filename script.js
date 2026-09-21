@@ -94,12 +94,34 @@ const myProfileBtn = document.getElementById("myProfileBtn");
 const nameModal = document.getElementById("nameModal");
 const nameInput = document.getElementById("nameInput");
 const nameConfirm = document.getElementById("nameConfirm");
-const emailLoginInput = document.getElementById("emailLoginInput");
+
+// Экраны модалки входа
+const authScreen0 = document.getElementById("authScreen0");
+const authScreen1 = document.getElementById("authScreen1");
+const authScreen2 = document.getElementById("authScreen2");
+const authScreen3 = document.getElementById("authScreen3");
+const authGoRegister = document.getElementById("authGoRegister");
+const authGoLogin = document.getElementById("authGoLogin");
+const authGoCode = document.getElementById("authGoCode");
+const authBack0from1 = document.getElementById("authBack0from1");
+const authBack0from2 = document.getElementById("authBack0from2");
+const authBack2from3 = document.getElementById("authBack2from3");
+const regEmailInput = document.getElementById("regEmailInput");
+const regError = document.getElementById("regError");
+const loginEmailInput = document.getElementById("loginEmailInput");
+const loginError = document.getElementById("loginError");
+const loginConfirm = document.getElementById("loginConfirm");
+const codeError = document.getElementById("codeError");
+const restoreCodeInput = document.getElementById("restoreCodeInput");
+const restoreCodeBtn = document.getElementById("restoreCodeBtn");
 
 const welcomeCodeModal = document.getElementById("welcomeCodeModal");
 const welcomeCodeValue = document.getElementById("welcomeCodeValue");
 const welcomeCodeCopy = document.getElementById("welcomeCodeCopy");
 const welcomeCodeClose = document.getElementById("welcomeCodeClose");
+const welcomeEmailNote = document.getElementById("welcomeEmailNote");
+const welcomeNoEmailNote = document.getElementById("welcomeNoEmailNote");
+const welcomeCodeBox = document.getElementById("welcomeCodeBox");
 
 const myCodeBtn = document.getElementById("myCodeBtn");
 const myCodeModal = document.getElementById("myCodeModal");
@@ -112,8 +134,6 @@ const myCodeCopy = document.getElementById("myCodeCopy");
 const emailBindInput = document.getElementById("emailBindInput");
 const emailBindSave = document.getElementById("emailBindSave");
 const emailBindStatus = document.getElementById("emailBindStatus");
-const restoreCodeInput = document.getElementById("restoreCodeInput");
-const restoreCodeBtn = document.getElementById("restoreCodeBtn");
 
 /* ---------- DOM: фото ---------- */
 const fileInput = document.getElementById("fileInput");
@@ -351,82 +371,131 @@ function refreshWhoAmI() {
   whoAmIEl.textContent = currentIdentity ? currentIdentity.name : "—";
 }
 
+function showAuthScreen(n) {
+  [authScreen0, authScreen1, authScreen2, authScreen3].forEach((s, i) => {
+    if (s) s.style.display = i === n ? "" : "none";
+  });
+}
+
 function ensureIdentity() {
   if (currentIdentity) {
     refreshWhoAmI();
     return;
   }
+  showAuthScreen(0);
   nameModal.classList.add("active");
 }
 
+const authGoogleBtn = document.getElementById("authGoogleBtn");
+
+// Навигация по экранам
+if (authGoRegister) authGoRegister.addEventListener("click", () => showAuthScreen(1));
+if (authGoLogin) authGoLogin.addEventListener("click", () => showAuthScreen(2));
+if (authGoCode) authGoCode.addEventListener("click", () => showAuthScreen(3));
+if (authBack0from1) authBack0from1.addEventListener("click", () => showAuthScreen(0));
+if (authBack0from2) authBack0from2.addEventListener("click", () => showAuthScreen(0));
+if (authBack2from3) authBack2from3.addEventListener("click", () => showAuthScreen(2));
+
+// Войти через Google
+if (authGoogleBtn) {
+  authGoogleBtn.addEventListener("click", async () => {
+    if (!db) return;
+    await db.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: window.location.href }
+    });
+  });
+}
+
+// Регистрация
 nameConfirm.addEventListener("click", async () => {
   const name = nameInput.value.trim();
   if (!name) {
-    showToast("Введи своё имя");
+    if (regError) { regError.textContent = "Введи имя"; regError.style.display = ""; }
     return;
   }
+  if (regError) regError.style.display = "none";
 
-  const emailVal = (emailLoginInput ? emailLoginInput.value.trim().toLowerCase() : "");
-  const isNewUser = !currentIdentity;
+  const emailVal = regEmailInput ? regEmailInput.value.trim().toLowerCase() : "";
 
-  // Если введён email — ищем существующий аккаунт по нему
+  // Если email введён — проверяем не занят ли он уже
   if (emailVal && db) {
-    const { data: found } = await db
-      .from(PROFILES_TABLE)
-      .select("owner_code, display_name")
-      .eq("email", emailVal)
-      .maybeSingle();
-
-    if (found) {
-      // Входим в найденный аккаунт
-      const restoredIdentity = { name: found.display_name || name, code: found.owner_code };
-      localStorage.setItem(IDENTITY_KEY, JSON.stringify(restoredIdentity));
-      currentIdentity = restoredIdentity;
-      nameModal.classList.remove("active");
-      if (emailLoginInput) emailLoginInput.value = "";
-      nameInput.value = "";
-      showToast("✅ Вошёл в существующий аккаунт по email!");
-      refreshWhoAmI();
-      refreshMyGigerBalance();
-      refreshActivityBadge();
-      subscribeActivityRealtime();
-      subscribeSitePresence();
-      unlockedKurymdykSet = null;
-      unlockedKurymdykForCode = null;
-      await Promise.all([loadPhotos(), loadVideos()]);
+    const { data: exists } = await db.from(PROFILES_TABLE).select("owner_code").eq("email", emailVal).maybeSingle();
+    if (exists) {
+      if (regError) { regError.textContent = "Этот email уже привязан к другому аккаунту. Войди через него."; regError.style.display = ""; }
       return;
     }
   }
 
-  // Обычный вход / создание аккаунта
-  currentIdentity = currentIdentity ? updateIdentityName(name) : saveIdentity(name);
-  nameModal.classList.remove("active");
+  currentIdentity = saveIdentity(name);
+  if (regEmailInput) regEmailInput.value = "";
   nameInput.value = "";
-  if (emailLoginInput) emailLoginInput.value = "";
+  nameModal.classList.remove("active");
+
+  if (db && currentIdentity) {
+    const payload = { owner_code: currentIdentity.code, display_name: name };
+    if (emailVal) payload.email = emailVal;
+    delete profileCache[currentIdentity.code];
+    await db.from(PROFILES_TABLE).upsert(payload, { onConflict: "owner_code" });
+    delete profileCache[currentIdentity.code];
+  }
+
   refreshWhoAmI();
   refreshMyGigerBalance();
   refreshActivityBadge();
   subscribeActivityRealtime();
   subscribeSitePresence();
-
-  if (db && currentIdentity) {
-    delete profileCache[currentIdentity.code];
-    const upsertPayload = { owner_code: currentIdentity.code, display_name: name };
-    if (emailVal) upsertPayload.email = emailVal;
-    await db.from(PROFILES_TABLE).upsert(upsertPayload, { onConflict: "owner_code" });
-    delete profileCache[currentIdentity.code];
-  }
-
   unlockedKurymdykSet = null;
   unlockedKurymdykForCode = null;
   await Promise.all([loadPhotos(), loadVideos()]);
 
-  // Показываем welcome-модалку только новым пользователям
-  if (isNewUser && welcomeCodeModal && welcomeCodeValue) {
+  // Welcome-модалка
+  if (welcomeCodeModal) {
     welcomeCodeValue.textContent = currentIdentity.code;
+    if (emailVal) {
+      if (welcomeEmailNote) welcomeEmailNote.style.display = "";
+      if (welcomeNoEmailNote) welcomeNoEmailNote.style.display = "none";
+      if (welcomeCodeBox) welcomeCodeBox.style.display = "none";
+    } else {
+      if (welcomeEmailNote) welcomeEmailNote.style.display = "none";
+      if (welcomeNoEmailNote) welcomeNoEmailNote.style.display = "";
+      if (welcomeCodeBox) welcomeCodeBox.style.display = "";
+    }
     welcomeCodeModal.classList.add("active");
   }
 });
+
+// Вход по email
+if (loginConfirm) {
+  loginConfirm.addEventListener("click", async () => {
+    const email = loginEmailInput ? loginEmailInput.value.trim().toLowerCase() : "";
+    if (!email || !email.includes("@")) {
+      if (loginError) { loginError.textContent = "Введи корректный email"; loginError.style.display = ""; }
+      return;
+    }
+    if (!db) return;
+    const { data } = await db.from(PROFILES_TABLE).select("owner_code, display_name").eq("email", email).maybeSingle();
+    if (!data) {
+      if (loginError) { loginError.textContent = "Аккаунт с таким email не найден"; loginError.style.display = ""; }
+      return;
+    }
+    if (loginError) loginError.style.display = "none";
+    const restored = { name: data.display_name || "—", code: data.owner_code };
+    localStorage.setItem(IDENTITY_KEY, JSON.stringify(restored));
+    currentIdentity = restored;
+    if (loginEmailInput) loginEmailInput.value = "";
+    nameModal.classList.remove("active");
+    showToast("✅ Вошёл в аккаунт!");
+    refreshWhoAmI();
+    refreshMyGigerBalance();
+    refreshActivityBadge();
+    subscribeActivityRealtime();
+    subscribeSitePresence();
+    unlockedKurymdykSet = null;
+    unlockedKurymdykForCode = null;
+    await Promise.all([loadPhotos(), loadVideos()]);
+  });
+}
 
 changeNameBtn.addEventListener("click", () => {
   nameInput.value = currentIdentity ? currentIdentity.name : "";
@@ -3891,8 +3960,37 @@ bannerFileInput.addEventListener("change", () => {
 /* ---------- Старт ---------- */
 async function boot() {
   refreshWhoAmI();
-  ensureIdentity();
   if (!initSupabase()) return;
+
+  // Обработка возврата после Google OAuth
+  const { data: { session } } = await db.auth.getSession();
+  if (session && session.user) {
+    const googleUser = session.user;
+    const email = googleUser.email;
+    const googleName = googleUser.user_metadata?.full_name || googleUser.user_metadata?.name || email.split("@")[0];
+
+    // Ищем существующий профиль по email
+    const { data: existing } = await db.from(PROFILES_TABLE).select("owner_code, display_name").eq("email", email).maybeSingle();
+
+    if (existing) {
+      // Уже есть аккаунт — входим
+      const identity = { name: existing.display_name || googleName, code: existing.owner_code };
+      localStorage.setItem(IDENTITY_KEY, JSON.stringify(identity));
+      currentIdentity = identity;
+    } else {
+      // Новый пользователь — создаём аккаунт
+      const newIdentity = saveIdentity(googleName);
+      currentIdentity = newIdentity;
+      await db.from(PROFILES_TABLE).upsert({
+        owner_code: newIdentity.code,
+        display_name: googleName,
+        email: email
+      }, { onConflict: "owner_code" });
+    }
+    refreshWhoAmI();
+  }
+
+  ensureIdentity();
 
   videoUrlHint.textContent = SOURCE_HINTS.google_drive;
   refreshMyGigerBalance();
@@ -4873,44 +4971,32 @@ if (editGameModalSave) {
 }
 
 /* ==================================================================
-   КОД ВХОДА — welcome модалка, кнопка 🔑, привязка email, восстановление
+   КОД ВХОДА — welcome модалка, кнопка 🔑, привязка email, вход по коду
    ================================================================== */
 
-// Welcome-модалка: копировать + закрыть
+// Welcome-модалка
 if (welcomeCodeCopy) {
   welcomeCodeCopy.addEventListener("click", () => {
-    navigator.clipboard.writeText(welcomeCodeValue.textContent).then(() => {
-      showToast("Код скопирован!");
-    });
+    navigator.clipboard.writeText(welcomeCodeValue.textContent).then(() => showToast("Код скопирован!"));
   });
 }
 if (welcomeCodeClose) {
-  welcomeCodeClose.addEventListener("click", () => {
-    welcomeCodeModal.classList.remove("active");
-  });
+  welcomeCodeClose.addEventListener("click", () => welcomeCodeModal.classList.remove("active"));
 }
 
-// Кнопка 🔑 — открыть модалку кода
+// Кнопка 🔑
 if (myCodeBtn) {
   myCodeBtn.addEventListener("click", () => {
-    if (!currentIdentity) {
-      showToast("Сначала войди в аккаунт");
-      return;
-    }
-    // Сброс состояния
+    if (!currentIdentity) { showToast("Сначала войди в аккаунт"); return; }
     myCodeHidden.style.display = "";
     myCodeVisible.style.display = "none";
     emailBindStatus.textContent = "";
-    restoreCodeInput.value = "";
-    // Подгружаем текущий email если есть
     if (db) {
       db.from(PROFILES_TABLE).select("email").eq("owner_code", currentIdentity.code).maybeSingle().then(({ data }) => {
+        emailBindInput.value = data && data.email ? data.email : "";
         if (data && data.email) {
-          emailBindInput.value = data.email;
           emailBindStatus.textContent = `✅ Привязан: ${data.email}`;
           emailBindStatus.style.color = "var(--accent, #6fcf97)";
-        } else {
-          emailBindInput.value = "";
         }
       });
     }
@@ -4918,31 +5004,26 @@ if (myCodeBtn) {
   });
 }
 
-// Показать/скрыть код с подтверждением
 if (showMyCodeBtn) {
   showMyCodeBtn.addEventListener("click", () => {
-    if (!confirm("Не показывай этот код другим людям — он даёт полный доступ к твоему аккаунту. Всё равно показать?")) return;
+    if (!confirm("Не показывай этот код другим — он даёт полный доступ к аккаунту. Показать?")) return;
     myCodeValue.textContent = currentIdentity.code;
     myCodeHidden.style.display = "none";
     myCodeVisible.style.display = "";
   });
 }
 
-// Копировать код
 if (myCodeCopy) {
   myCodeCopy.addEventListener("click", () => {
     navigator.clipboard.writeText(myCodeValue.textContent).then(() => showToast("Код скопирован!"));
   });
 }
 
-// Закрыть модалку кода
 if (myCodeClose) {
-  myCodeClose.addEventListener("click", () => {
-    myCodeModal.classList.remove("active");
-  });
+  myCodeClose.addEventListener("click", () => myCodeModal.classList.remove("active"));
 }
 
-// Привязать email
+// Привязать email через кнопку 🔑
 if (emailBindSave) {
   emailBindSave.addEventListener("click", async () => {
     if (!currentIdentity || !db) return;
@@ -4954,42 +5035,45 @@ if (emailBindSave) {
     }
     emailBindStatus.textContent = "Сохраняю...";
     emailBindStatus.style.color = "";
-    const { error } = await db.from(PROFILES_TABLE)
-      .update({ email })
-      .eq("owner_code", currentIdentity.code);
+    const { error } = await db.from(PROFILES_TABLE).update({ email }).eq("owner_code", currentIdentity.code);
     if (error) {
-      if (error.code === "23505") {
-        emailBindStatus.textContent = "❌ Этот email уже привязан к другому аккаунту";
-      } else {
-        emailBindStatus.textContent = "❌ Ошибка: " + error.message;
-      }
+      emailBindStatus.textContent = error.code === "23505"
+        ? "❌ Этот email уже привязан к другому аккаунту"
+        : "❌ Ошибка: " + error.message;
       emailBindStatus.style.color = "var(--danger, #eb5757)";
     } else {
-      emailBindStatus.textContent = `✅ Email привязан: ${email}`;
+      emailBindStatus.textContent = `✅ Привязан: ${email}`;
       emailBindStatus.style.color = "var(--accent, #6fcf97)";
-      showToast("Email привязан! Теперь можно войти с любого устройства.");
+      showToast("Email привязан!");
     }
   });
 }
 
-// Войти по коду вручную
+// Вход по коду (экран 4 в модалке входа)
 if (restoreCodeBtn) {
   restoreCodeBtn.addEventListener("click", async () => {
     const code = restoreCodeInput.value.trim();
-    if (!code) {
-      showToast("Вставь свой код");
-      return;
-    }
+    if (!code) { if (codeError) { codeError.textContent = "Вставь свой код"; codeError.style.display = ""; } return; }
     if (!db) return;
-    const { data, error } = await db.from(PROFILES_TABLE).select("owner_code, display_name").eq("owner_code", code).maybeSingle();
-    if (error || !data) {
-      showToast("❌ Аккаунт с таким кодом не найден");
+    const { data } = await db.from(PROFILES_TABLE).select("owner_code, display_name").eq("owner_code", code).maybeSingle();
+    if (!data) {
+      if (codeError) { codeError.textContent = "Аккаунт с таким кодом не найден"; codeError.style.display = ""; }
       return;
     }
-    if (!confirm(`Войти как «${data.display_name || "без имени"}»? Текущий аккаунт будет заменён в этом браузере.`)) return;
-    const restored = { name: data.display_name || currentIdentity?.name || "—", code: data.owner_code };
+    if (codeError) codeError.style.display = "none";
+    const restored = { name: data.display_name || "—", code: data.owner_code };
     localStorage.setItem(IDENTITY_KEY, JSON.stringify(restored));
-    showToast("✅ Аккаунт восстановлен! Перезагружаю...");
-    setTimeout(() => location.reload(), 1200);
+    currentIdentity = restored;
+    if (restoreCodeInput) restoreCodeInput.value = "";
+    nameModal.classList.remove("active");
+    showToast("✅ Вошёл в аккаунт!");
+    refreshWhoAmI();
+    refreshMyGigerBalance();
+    refreshActivityBadge();
+    subscribeActivityRealtime();
+    subscribeSitePresence();
+    unlockedKurymdykSet = null;
+    unlockedKurymdykForCode = null;
+    await Promise.all([loadPhotos(), loadVideos()]);
   });
 }

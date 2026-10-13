@@ -4577,31 +4577,8 @@ function parseDriveFileId(url) {
   return m ? m[1] : null;
 }
 
-/* --- Плеер игры: скачиваем zip, распаковываем JSZip, запускаем в iframe --- */
-
-/* Список публичных CORS-прокси — пробуем по очереди */
-const CORS_PROXIES = [
-  id => `https://corsproxy.io/?url=${encodeURIComponent(`https://drive.google.com/uc?export=download&id=${id}&confirm=t`)}`,
-  id => `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://drive.google.com/uc?export=download&id=${id}&confirm=t`)}`,
-  id => `https://cors-anywhere.herokuapp.com/https://drive.google.com/uc?export=download&id=${id}&confirm=t`,
-];
-
-async function fetchWithProxies(fileId, statusEl) {
-  for (let i = 0; i < CORS_PROXIES.length; i++) {
-    const url = CORS_PROXIES[i](fileId);
-    try {
-      statusEl.textContent = `Загружаю... (попытка ${i + 1}/${CORS_PROXIES.length})`;
-      const resp = await fetch(url, { signal: AbortSignal.timeout(15000) });
-      if (resp.ok) {
-        const buf = await resp.arrayBuffer();
-        if (buf.byteLength > 100) return buf; // минимальный размер осмысленного файла
-      }
-    } catch (e) {
-      // пробуем следующий прокси
-    }
-  }
-  return null;
-}
+/* --- Плеер игры: скачиваем zip через CF Worker, распаковываем JSZip, запускаем в iframe --- */
+const GAME_PLAYER_WORKER_URL = "https://mute-grass-7ad4.popatuka0487.workers.dev";
 
 async function openGamePlayer(driveUrl, gameTitle) {
   const fileId = parseDriveFileId(driveUrl);
@@ -4642,17 +4619,12 @@ async function openGamePlayer(driveUrl, gameTitle) {
   overlay.classList.add("active");
 
   try {
-    // Пробуем скачать через CORS-прокси
-    const arrayBuffer = await fetchWithProxies(fileId, statusEl);
-
-    // Если все прокси упали — fallback: Google Drive embed iframe
-    if (!arrayBuffer) {
-      statusEl.style.display = "none";
-      frameEl.style.display = "block";
-      frameEl.removeAttribute("sandbox"); // embed Drive не работает в sandbox
-      frameEl.src = `https://drive.google.com/file/d/${fileId}/preview`;
-      return;
-    }
+    // Скачиваем zip через Cloudflare Worker (обходим CORS)
+    const proxyUrl = `${GAME_PLAYER_WORKER_URL}/?id=${fileId}`;
+    statusEl.textContent = "Загружаю игру...";
+    const resp = await fetch(proxyUrl);
+    if (!resp.ok) throw new Error(`Ошибка загрузки: ${resp.status}`);
+    const arrayBuffer = await resp.arrayBuffer();
 
     // Проверяем magic bytes: ZIP начинается с PK (0x50 0x4B)
     const magic = new Uint8Array(arrayBuffer, 0, 2);

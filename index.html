@@ -4,7 +4,64 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Галерея бурундуков Кирила</title>
+<link rel="icon" type="image/png" href="assets/Favicon.png">
 <link rel="stylesheet" href="style.css">
+<style>
+/* ── Кнопка Играть ── */
+.game-play-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 6px; border: none; cursor: pointer;
+  font-size: 13px; font-weight: 600;
+  background: #22c55e; color: #fff; transition: background .15s;
+}
+.game-play-btn:hover { background: #16a34a; }
+
+/* ── Бейдж "без ремиксов" ── */
+.game-no-remix-badge {
+  font-size: 11px; color: #f97316;
+  background: #fff7ed; border: 1px solid #fed7aa;
+  border-radius: 4px; padding: 1px 5px;
+}
+
+/* ── Чекбокс в форме добавления игры ── */
+.game-no-remix-label {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--text-muted, #888); cursor: pointer;
+  margin: 2px 0;
+}
+.game-no-remix-label input { cursor: pointer; }
+
+/* ── Оверлей плеера ── */
+#gamePlayerOverlay {
+  display: none; position: fixed; inset: 0; z-index: 9999;
+  background: rgba(0,0,0,.85); align-items: center; justify-content: center;
+}
+#gamePlayerOverlay.active { display: flex; }
+
+.game-player-box {
+  display: flex; flex-direction: column;
+  width: min(95vw, 1100px); height: min(92vh, 720px);
+  background: #111; border-radius: 12px; overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0,0,0,.7);
+}
+.game-player-topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 14px; background: #1a1a1a; flex-shrink: 0;
+}
+.game-player-title { font-size: 14px; font-weight: 600; color: #fff; }
+.game-player-close {
+  background: none; border: none; color: #aaa; font-size: 18px;
+  cursor: pointer; line-height: 1; padding: 2px 6px; border-radius: 4px;
+}
+.game-player-close:hover { background: #333; color: #fff; }
+.game-player-status {
+  color: #aaa; font-size: 14px; text-align: center;
+  padding: 40px 20px;
+}
+.game-player-frame {
+  flex: 1; border: none; width: 100%; background: #000;
+}
+</style>
 </head>
 <body>
 
@@ -240,6 +297,18 @@
         <div style="text-align:center;color:var(--text-muted,#888);font-size:0.83em;">или</div>
         <button id="authGoRegister" class="pick-btn small" style="background:var(--bg-secondary,#1a1a1a);color:var(--text,#fff);border:1px solid var(--border,#333);">🐿️ Создать аккаунт без Google</button>
         <button id="authGoLogin" class="link-btn">У меня уже есть аккаунт (без Google)</button>
+      </div>
+    </div>
+
+    <!-- Экран 5: смена имени (уже вошёл) -->
+    <div id="authScreen4" style="display:none;">
+      <h3>Сменить имя 🐿️</h3>
+      <label class="modal-label">Новое имя</label>
+      <input type="text" id="renameInput" class="modal-input" placeholder="твоё имя">
+      <p id="renameError" style="color:var(--danger,#eb5757);font-size:0.83em;margin-top:6px;display:none;"></p>
+      <div class="modal-actions" style="margin-top:14px;">
+        <button id="renameCancel" class="link-btn">Отмена</button>
+        <button id="renameConfirm" class="pick-btn small">Сохранить</button>
       </div>
     </div>
 
@@ -713,6 +782,9 @@
     <textarea id="gameDesc" class="modal-input modal-textarea" placeholder="Описание игры" maxlength="400"></textarea>
     <input type="text" id="gameAuthor" class="modal-input" placeholder="Автор (пусто = твоё имя)">
     <input type="text" id="gameTags" class="modal-input" placeholder="Теги через запятую: платформер, 2d, хоррор">
+    <label class="game-no-remix-label">
+      <input type="checkbox" id="gameNoRemix"> Запретить скачивание (ремиксы)
+    </label>
     <hr class="modal-divider">
     <div class="modal-section-label">Первая версия</div>
     <input type="text" id="gameFirstVerUrl" class="modal-input" placeholder="Ссылка на Google Drive">

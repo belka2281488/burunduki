@@ -8,6 +8,11 @@ let currentCategoryFilter = "all";
 let currentAuthorFilter = "all";
 let currentSort = "date_desc";
 let allRatingsMap = {}; // "photo:<id>" / "video:<id>" -> { avg, count }
+let allGames = [];
+let allGameTags = [];
+let gameSearchQuery = [];
+let gameAuthorFilter = "all";
+let gameSortMode = "date_desc";
 const RATING_TABLE = "burunduk_ratings";
 const GIGER_TABLE = "burunduk_gigers";
 const GIGER_GIFTS_TABLE = "burunduk_giger_gifts";
@@ -15,6 +20,7 @@ const VIEWS_TABLE = "burunduk_views";
 const ACTIVITY_TABLE = "burunduk_activity";
 const COMMENTS_TABLE = "burunduk_comments";
 const PROFILES_TABLE = "burunduk_profiles";
+
 const NAME_COLOR_PRESETS = [
   "#a0522d", "#e74c3c", "#e67e22", "#f1c40f", "#2ecc71",
   "#1abc9c", "#3498db", "#9b59b6", "#e84393", "#2c3e50",
@@ -100,6 +106,7 @@ const authScreen0 = document.getElementById("authScreen0");
 const authScreen1 = document.getElementById("authScreen1");
 const authScreen2 = document.getElementById("authScreen2");
 const authScreen3 = document.getElementById("authScreen3");
+const authScreen4 = document.getElementById("authScreen4");
 const authGoRegister = document.getElementById("authGoRegister");
 const authGoLogin = document.getElementById("authGoLogin");
 const authGoCode = document.getElementById("authGoCode");
@@ -292,10 +299,17 @@ const ratingEls = {
     picker: document.getElementById("videoRatingPicker"),
     submit: document.getElementById("videoRatingSubmit"),
   },
+  text: {
+    summaryImg: document.getElementById("textRatingSummaryImg"),
+    score: document.getElementById("textRatingScore"),
+    label: document.getElementById("textRatingLabel"),
+    picker: document.getElementById("textRatingPicker"),
+    submit: document.getElementById("textRatingSubmit"),
+  },
 };
 
-let selectedRank = { photo: null, video: null };
-let currentRatingTarget = { photo: null, video: null };
+let selectedRank = { photo: null, video: null, text: null };
+let currentRatingTarget = { photo: null, video: null, text: null };
 
 /* ---------- DOM: комментарии (отдельная лента, не привязана к оценке) ---------- */
 const commentEls = {
@@ -376,7 +390,7 @@ function refreshWhoAmI() {
 }
 
 function showAuthScreen(n) {
-  [authScreen0, authScreen1, authScreen2, authScreen3].forEach((s, i) => {
+  [authScreen0, authScreen1, authScreen2, authScreen3, authScreen4].forEach((s, i) => {
     if (s) s.style.display = i === n ? "" : "none";
   });
 }
@@ -502,9 +516,59 @@ if (loginConfirm) {
 }
 
 changeNameBtn.addEventListener("click", () => {
-  nameInput.value = currentIdentity ? currentIdentity.name : "";
-  nameModal.classList.add("active");
+  if (currentIdentity) {
+    // Уже вошёл — показываем экран смены имени
+    const renameInput = document.getElementById("renameInput");
+    if (renameInput) renameInput.value = currentIdentity.name;
+    const renameError = document.getElementById("renameError");
+    if (renameError) renameError.style.display = "none";
+    showAuthScreen(4);
+    nameModal.classList.add("active");
+  } else {
+    // Не вошёл — показываем обычный экран входа
+    showAuthScreen(0);
+    nameModal.classList.add("active");
+  }
 });
+
+// Экран смены имени
+const renameConfirmBtn = document.getElementById("renameConfirm");
+const renameCancelBtn  = document.getElementById("renameCancel");
+const renameInputEl    = document.getElementById("renameInput");
+const renameErrorEl    = document.getElementById("renameError");
+
+if (renameCancelBtn) {
+  renameCancelBtn.addEventListener("click", () => {
+    nameModal.classList.remove("active");
+  });
+}
+
+if (renameConfirmBtn) {
+  renameConfirmBtn.addEventListener("click", async () => {
+    const newName = renameInputEl ? renameInputEl.value.trim() : "";
+    if (!newName) {
+      if (renameErrorEl) { renameErrorEl.textContent = "Введи имя"; renameErrorEl.style.display = ""; }
+      return;
+    }
+    if (renameErrorEl) renameErrorEl.style.display = "none";
+
+    currentIdentity.name = newName;
+    localStorage.setItem(IDENTITY_KEY, JSON.stringify(currentIdentity));
+
+    if (db && currentIdentity) {
+      delete profileCache[currentIdentity.code];
+      await db.from(PROFILES_TABLE).upsert(
+        { owner_code: currentIdentity.code, display_name: newName },
+        { onConflict: "owner_code" }
+      );
+      delete profileCache[currentIdentity.code];
+    }
+
+    nameModal.classList.remove("active");
+    refreshWhoAmI();
+    showToast("Имя изменено ✅");
+  });
+}
 
 myProfileBtn.addEventListener("click", () => {
   if (!currentIdentity) {
@@ -538,6 +602,12 @@ const SOURCE_HINTS = {
   other: "Вставь прямую ссылку на видео (.mp4 и т.п.) или на страницу с ним",
 };
 
+// Не закрывать модалку если пользователь выделял текст мышкой
+function isTextSelected() {
+  const sel = window.getSelection();
+  return sel && sel.toString().length > 0;
+}
+
 function showToast(msg) {
   toast.textContent = msg;
   toast.classList.add("show");
@@ -547,10 +617,13 @@ function showToast(msg) {
 
 /* ---------- Инициализация Supabase ---------- */
 function initSupabase() {
+  const statusElement = document.getElementById("status");
   if (!window.supabase || SUPABASE_URL.includes("ВСТАВЬ") || SUPABASE_ANON_KEY.includes("ВСТАВЬ")) {
-    statusEl.innerHTML = `Настрой config.js — вставь свои SUPABASE_URL и SUPABASE_ANON_KEY (инструкция в README.txt)`;
-    uploadPhotoBtn.disabled = true;
-    uploadVideoBtn.disabled = true;
+    if (statusElement) {
+      statusElement.innerHTML = "Настрой config.js — вставь свои SUPABASE_URL и SUPABASE_ANON_KEY (инструкция в README.txt)";
+    }
+    if (uploadPhotoBtn) uploadPhotoBtn.disabled = true;
+    if (uploadVideoBtn) uploadVideoBtn.disabled = true;
     if (uploadTextBtn) uploadTextBtn.disabled = true;
     return false;
   }
@@ -1431,7 +1504,7 @@ lightboxAuthor.addEventListener("click", () => {
   }
 });
 lightbox.addEventListener("click", (e) => {
-  if (e.target === lightbox) closeLightbox();
+  if (e.target === lightbox && !isTextSelected()) closeLightbox();
 });
 
 function setMode(mode) {
@@ -1554,14 +1627,29 @@ downloadBtn.addEventListener("click", async () => {
 copyBtn.addEventListener("click", async () => {
   if (!currentPhotoSrc) return;
   try {
-    const res = await fetch(currentPhotoSrc);
-    const blob = await res.blob();
-    await navigator.clipboard.write([
-      new ClipboardItem({ [blob.type || "image/png"]: blob })
-    ]);
+    // Рисуем через canvas чтобы обойти CORS на fetch
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    await new Promise((res, rej) => {
+      img.onload = res;
+      img.onerror = rej;
+      img.src = currentPhotoSrc + (currentPhotoSrc.includes("?") ? "&" : "?") + "_cb=" + Date.now();
+    });
+    const canvas = document.createElement("canvas");
+    canvas.width  = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    canvas.getContext("2d").drawImage(img, 0, 0);
+    const blob = await new Promise((res) => canvas.toBlob(res, "image/png"));
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
     showToast("Скопировано в буфер обмена 📋");
   } catch (err) {
-    showToast("Не удалось скопировать (нужен HTTPS, на GitHub Pages сработает)");
+    // Финальный fallback — просто копируем прямую ссылку
+    try {
+      await navigator.clipboard.writeText(currentPhotoSrc);
+      showToast("Ссылка скопирована (картинку не удалось, скопировали ссылку) 🔗");
+    } catch {
+      showToast("Не удалось скопировать (нужен HTTPS, на GitHub Pages сработает)");
+    }
     console.error(err);
   }
 });
@@ -1800,7 +1888,7 @@ videoLightboxAuthor.addEventListener("click", () => {
   }
 });
 videoLightbox.addEventListener("click", (e) => {
-  if (e.target === videoLightbox) closeVideoLightbox();
+  if (e.target === videoLightbox && !isTextSelected()) closeVideoLightbox();
 });
 
 videoOpenBtn.addEventListener("click", () => {
@@ -2226,7 +2314,7 @@ async function openTextLightbox(record, index) {
   textLightbox.scrollTop = 0;
   document.body.style.overflow = "hidden";
 
-  // Load comments for text
+  // Load comments and ratings for text
   loadTextComments(record.id);
   } catch(e) { console.error("openTextLightbox error:", e); }
 }
@@ -2239,7 +2327,7 @@ function closeTextLightbox() {
 
 if (textLightboxClose) textLightboxClose.addEventListener("click", closeTextLightbox);
 if (textLightbox) textLightbox.addEventListener("click", (e) => {
-  if (e.target === textLightbox) closeTextLightbox();
+  if (e.target === textLightbox && !isTextSelected()) closeTextLightbox();
 });
 
 if (textLightboxPrevBtn) textLightboxPrevBtn.addEventListener("click", (e) => {
@@ -2508,7 +2596,8 @@ function nearestRankLevel(avg) {
 }
 
 function buildRatingPicker(kind) {
-  const el = ratingEls[kind].picker;
+  const el = ratingEls[kind]?.picker;
+  if (!el) return; // Если элемента нет на странице, просто выходим
   el.innerHTML = "";
   RANK_LEVELS.forEach((level) => {
     const btn = document.createElement("button");
@@ -2527,6 +2616,7 @@ function buildRatingPicker(kind) {
 
 buildRatingPicker("photo");
 buildRatingPicker("video");
+buildRatingPicker("text");
 
 function renderRatingSummary(kind, ratings) {
   const els = ratingEls[kind];
@@ -2623,8 +2713,9 @@ async function submitRating(kind) {
   loadComments(kind, currentRatingTarget[kind]);
 }
 
-ratingEls.photo.submit.addEventListener("click", () => submitRating("photo"));
-ratingEls.video.submit.addEventListener("click", () => submitRating("video"));
+if (ratingEls.photo?.submit) ratingEls.photo.submit.addEventListener("click", () => submitRating("photo"));
+if (ratingEls.video?.submit) ratingEls.video.submit.addEventListener("click", () => submitRating("video"));
+if (ratingEls.text?.submit) ratingEls.text.submit.addEventListener("click", () => submitRating("text"));
 
 /* ==================================================================
    КОММЕНТАРИИ — отдельная лента, независимая от оценки. Можно оставлять
@@ -2754,7 +2845,7 @@ function openCommentEditModal(kind, comment) {
 if (commentEditInput) commentEditInput.addEventListener("input", updateCommentEditState);
 if (commentEditCancel) commentEditCancel.addEventListener("click", closeCommentEditModal);
 if (commentEditModal) commentEditModal.addEventListener("click", (e) => {
-  if (e.target === commentEditModal) closeCommentEditModal();
+  if (e.target === commentEditModal && !isTextSelected()) closeCommentEditModal();
 });
 
 async function saveEditedComment() {
@@ -4470,11 +4561,6 @@ const GAME_COMMENTS_TABLE = "burunduk_game_comments";
 const GAME_DOWNLOADS_TABLE = "burunduk_game_downloads";
 const GAME_TAGS_TABLE    = "burunduk_game_tags";
 
-let allGames = [];
-let allGameTags = [];
-let gameSearchQuery = [];
-let gameAuthorFilter = "all";
-let gameSortMode = "date_desc";
 
 /* --- Drive URL → прямая ссылка --- */
 function parseDriveUrl(url) {
@@ -4482,6 +4568,251 @@ function parseDriveUrl(url) {
   const m = url.match(/\/d\/([a-zA-Z0-9_-]+)/) || url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
   if (m) return `https://drive.google.com/uc?export=download&id=${m[1]}`;
   return url;
+}
+
+/* --- Извлечь file ID из Drive ссылки --- */
+function parseDriveFileId(url) {
+  if (!url) return null;
+  const m = url.match(/\/d\/([a-zA-Z0-9_-]+)/) || url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  return m ? m[1] : null;
+}
+
+/* --- Плеер игры: скачиваем zip, распаковываем JSZip, запускаем в iframe --- */
+
+/* Список публичных CORS-прокси — пробуем по очереди */
+const CORS_PROXIES = [
+  id => `https://corsproxy.io/?url=${encodeURIComponent(`https://drive.google.com/uc?export=download&id=${id}&confirm=t`)}`,
+  id => `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://drive.google.com/uc?export=download&id=${id}&confirm=t`)}`,
+  id => `https://cors-anywhere.herokuapp.com/https://drive.google.com/uc?export=download&id=${id}&confirm=t`,
+];
+
+async function fetchWithProxies(fileId, statusEl) {
+  for (let i = 0; i < CORS_PROXIES.length; i++) {
+    const url = CORS_PROXIES[i](fileId);
+    try {
+      statusEl.textContent = `Загружаю... (попытка ${i + 1}/${CORS_PROXIES.length})`;
+      const resp = await fetch(url, { signal: AbortSignal.timeout(15000) });
+      if (resp.ok) {
+        const buf = await resp.arrayBuffer();
+        if (buf.byteLength > 100) return buf; // минимальный размер осмысленного файла
+      }
+    } catch (e) {
+      // пробуем следующий прокси
+    }
+  }
+  return null;
+}
+
+async function openGamePlayer(driveUrl, gameTitle) {
+  const fileId = parseDriveFileId(driveUrl);
+  if (!fileId) { alert("Не удалось определить файл Google Drive"); return; }
+
+  // Создаём оверлей-плеер
+  let overlay = document.getElementById("gamePlayerOverlay");
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.id = "gamePlayerOverlay";
+    overlay.innerHTML = `
+      <div class="game-player-box">
+        <div class="game-player-topbar">
+          <span class="game-player-title"></span>
+          <button class="game-player-close" title="Закрыть">✕</button>
+        </div>
+        <div class="game-player-status"></div>
+        <iframe class="game-player-frame" sandbox="allow-scripts allow-same-origin allow-forms allow-pointer-lock allow-popups" allowfullscreen></iframe>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector(".game-player-close").addEventListener("click", () => {
+      overlay.classList.remove("active");
+      overlay.querySelector(".game-player-frame").src = "";
+      URL.revokeObjectURL(overlay._blobUrl || "");
+    });
+    overlay.addEventListener("click", e => { if (e.target === overlay) overlay.querySelector(".game-player-close").click(); });
+  }
+
+  const statusEl = overlay.querySelector(".game-player-status");
+  const frameEl  = overlay.querySelector(".game-player-frame");
+  const titleEl  = overlay.querySelector(".game-player-title");
+
+  titleEl.textContent = gameTitle || "Играть";
+  statusEl.textContent = "Загружаю игру...";
+  statusEl.style.display = "block";
+  frameEl.style.display = "none";
+  frameEl.src = "";
+  overlay.classList.add("active");
+
+  try {
+    // Пробуем скачать через CORS-прокси
+    const arrayBuffer = await fetchWithProxies(fileId, statusEl);
+
+    // Если все прокси упали — fallback: Google Drive embed iframe
+    if (!arrayBuffer) {
+      statusEl.style.display = "none";
+      frameEl.style.display = "block";
+      frameEl.removeAttribute("sandbox"); // embed Drive не работает в sandbox
+      frameEl.src = `https://drive.google.com/file/d/${fileId}/preview`;
+      return;
+    }
+
+    // Проверяем magic bytes: ZIP начинается с PK (0x50 0x4B)
+    const magic = new Uint8Array(arrayBuffer, 0, 2);
+    const isZip = magic[0] === 0x50 && magic[1] === 0x4B;
+
+    if (!isZip) {
+      // Одиночный HTML-файл — грузим напрямую как blob
+      statusEl.style.display = "none";
+      frameEl.style.display = "block";
+      const htmlBlob = new Blob([arrayBuffer], { type: "text/html" });
+      const htmlUrl = URL.createObjectURL(htmlBlob);
+      overlay._blobUrl = htmlUrl;
+      frameEl.src = htmlUrl;
+      return;
+    }
+
+    statusEl.textContent = "Распаковываю...";
+
+    // Подключаем JSZip — сначала пробуем cdnjs, потом jsdelivr
+    if (!window.JSZip) {
+      await new Promise((res, rej) => {
+        const s = document.createElement("script");
+        s.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+        s.onload = res;
+        s.onerror = () => {
+          // fallback на jsdelivr
+          const s2 = document.createElement("script");
+          s2.src = "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js";
+          s2.onload = res; s2.onerror = rej;
+          document.head.appendChild(s2);
+        };
+        document.head.appendChild(s);
+      });
+    }
+
+    const zip = await JSZip.loadAsync(arrayBuffer);
+
+    // Ищем index.html (в любой вложенности), затем любой .html
+    let indexEntry = zip.file("index.html");
+    if (!indexEntry) {
+      const all = Object.keys(zip.files);
+      const found = all.find(p => p.endsWith("/index.html") || p === "index.html")
+        || all.find(p => !zip.files[p].dir && (p.endsWith(".html") || p.endsWith(".htm")));
+      if (found) indexEntry = zip.file(found);
+    }
+    if (!indexEntry) throw new Error("В архиве нет HTML-файла — игра не поддерживает браузерный запуск");
+
+    // Определяем базовую папку (если index.html лежит в подпапке)
+    const indexPath = indexEntry.name;
+    const baseDir = indexPath.includes("/") ? indexPath.substring(0, indexPath.lastIndexOf("/") + 1) : "";
+
+    // Строим data: URLs для каждого файла — работают из любого контекста
+    const blobUrls = {};
+    const fileEntries = Object.values(zip.files).filter(f => !f.dir);
+
+    await Promise.all(fileEntries.map(async entry => {
+      const relativePath = baseDir ? entry.name.replace(baseDir, "") : entry.name;
+      const buf = await entry.async("uint8array");
+      const mime = guessMime(entry.name);
+      let binary = "";
+      const chunk = 8192;
+      for (let i = 0; i < buf.length; i += chunk) {
+        binary += String.fromCharCode(...buf.subarray(i, i + chunk));
+      }
+      blobUrls[relativePath] = `data:${mime};base64,${btoa(binary)}`;
+    }));
+
+    // Патчим index.html — заменяем статические пути на blob URLs
+    let html = await indexEntry.async("string");
+    html = html.replace(/(src|href)=["']([^"'#]+)["']/g, (match, attr, path) => {
+      const clean = path.replace(/^\.\//, "");
+      return blobUrls[clean] ? `${attr}="${blobUrls[clean]}"` : match;
+    });
+    html = html.replace(/url\(['"']?([^'")\s]+)['"']?\)/g, (match, path) => {
+      const clean = path.replace(/^\.\//, "");
+      return blobUrls[clean] ? `url("${blobUrls[clean]}")` : match;
+    });
+
+    // Инжектируем перехватчик динамических .src = "assets/..."
+    const blobMapJson = JSON.stringify(blobUrls);
+    const interceptScript = `<meta name="referrer" content="no-referrer"><script>
+(function(){
+  var __blobMap = ${blobMapJson};
+  function __resolve(p){
+    if(!p||p.startsWith('blob:')||p.startsWith('data:')||p.startsWith('http')||p.startsWith('/')) return p;
+    var c = p.replace(/^\.\//,'');
+    return __blobMap[c] || p;
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    document.querySelectorAll('img').forEach(function(img){
+      img.removeAttribute('loading');
+      img.decoding = 'sync';
+    });
+  });
+  var _NImg = window.Image;
+  function PatchedImage(w,h){
+    var img = new _NImg(w,h);
+    Object.defineProperty(img,'src',{
+      configurable:true,
+      get:function(){return img.getAttribute('src')||'';},
+      set:function(v){img.setAttribute('src',__resolve(v));}
+    });
+    return img;
+  }
+  PatchedImage.prototype = _NImg.prototype;
+  window.Image = PatchedImage;
+  var _NCreate = document.createElement.bind(document);
+  document.createElement = function(tag){
+    var el = _NCreate(tag);
+    var t = tag.toLowerCase();
+    if(t==='img'||t==='audio'||t==='video'){
+      Object.defineProperty(el,'src',{
+        configurable:true,
+        get:function(){return el.getAttribute('src')||'';},
+        set:function(v){el.setAttribute('src',__resolve(v));}
+      });
+    }
+    return el;
+  };
+  var _NAudio = window.Audio;
+  if(_NAudio) window.Audio = function(src){ return new _NAudio(__resolve(src||'')); };
+})();
+<\/script>`;
+    if (/<head[^>]*>/i.test(html)) {
+      html = html.replace(/<head([^>]*)>/i, '<head$1>' + interceptScript);
+    } else {
+      html = interceptScript + html;
+    }
+
+    // Финальный HTML тоже data URL — iframe с null origin не читает blob:
+    const encoder = new TextEncoder();
+    const htmlBytes = encoder.encode(html);
+    let htmlBinary = "";
+    for (let i = 0; i < htmlBytes.length; i++) htmlBinary += String.fromCharCode(htmlBytes[i]);
+    const htmlUrl = "data:text/html;base64," + btoa(htmlBinary);
+    overlay._blobUrl = null;
+
+    statusEl.style.display = "none";
+    frameEl.style.display  = "block";
+    frameEl.src = htmlUrl;
+
+  } catch (err) {
+    statusEl.textContent = "❌ " + err.message;
+  }
+}
+
+function guessMime(filename) {
+  const ext = filename.split(".").pop().toLowerCase();
+  const map = {
+    html:"text/html", htm:"text/html",
+    js:"application/javascript", mjs:"application/javascript",
+    css:"text/css",
+    png:"image/png", jpg:"image/jpeg", jpeg:"image/jpeg",
+    gif:"image/gif", webp:"image/webp", svg:"image/svg+xml",
+    mp3:"audio/mpeg", ogg:"audio/ogg", wav:"audio/wav",
+    mp4:"video/mp4", webm:"video/webm",
+    woff:"font/woff", woff2:"font/woff2", ttf:"font/ttf",
+    json:"application/json", xml:"application/xml",
+  };
+  return map[ext] || "application/octet-stream";
 }
 
 function esc(str) {
@@ -4525,6 +4856,7 @@ async function resolveGameOwners(games) {
     byName.set(name, list);
   }
   for (const game of games) {
+    if (game.owner_code) continue; // уже есть из БД — не перезаписываем
     for (const name of [game.owner_name, game.author].map(v => String(v || '').trim()).filter(Boolean)) {
       const matches = byName.get(name) || [];
       if (matches.length === 1) {
@@ -4671,36 +5003,54 @@ function renderGames() {
       ? game.tags.map(t => `<span class="game-tag">#${esc(t)}</span>`).join("")
       : "";
 
+    const isGameOwner = currentIdentity && (
+      (game.owner_code && game.owner_code === currentIdentity.code) ||
+      (!game.owner_code && (
+        (game.owner_name && game.owner_name === currentIdentity.name) ||
+        (game.author && game.author === currentIdentity.name)
+      ))
+    );
+
     const versionsHtml = game.versions.length
       ? game.versions.map((v, i) => {
           const dl = parseDriveUrl(v.drive_url);
-          const delBtn = isGiger
+          const delBtn = isGameOwner
             ? `<button class="game-ver-del" data-vid="${v.id}" title="Удалить версию">✕</button>`
             : "";
-          return `<div class="game-version-row">
-            <span class="game-ver-label">${autoVersionLabel(i)}</span>
-            ${v.note ? `<span class="game-ver-note">${esc(v.note)}</span>` : ""}
-            <a class="game-download-btn" href="${dl}" data-game-id="${game.id}"
+          const downloadBtn = game.no_remix
+            ? ""
+            : `<a class="game-download-btn" href="${dl}" data-game-id="${game.id}"
                download target="_blank">
               <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                 <path d="M8 1v9M8 10l-3-3M8 10l3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 <path d="M2 13h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
               </svg>
               Скачать
-            </a>
+            </a>`;
+          const playBtn = `<button class="game-play-btn" data-drive="${esc(v.drive_url)}" data-title="${esc(game.title)}">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                <polygon points="3,1 15,8 3,15" fill="currentColor"/>
+              </svg>
+              Играть
+            </button>`;
+          return `<div class="game-version-row">
+            <span class="game-ver-label">${autoVersionLabel(i)}</span>
+            ${v.note ? `<span class="game-ver-note">${esc(v.note)}</span>` : ""}
+            ${playBtn}
+            ${downloadBtn}
             ${delBtn}
           </div>`;
         }).join("")
       : `<div class="game-no-versions">Нет версий</div>`;
 
-    const addVerBtn = isGiger
+    const addVerBtn = isGameOwner
       ? `<button class="game-add-ver-btn" data-gid="${game.id}">+ Добавить версию</button>`
       : "";
 
-    const delGameBtn = isGiger
+    const delGameBtn = isGameOwner
       ? `<button class="game-delete-btn" data-id="${game.id}" title="Удалить">🗑️</button>`
       : "";
-    const editGameBtn = isGiger
+    const editGameBtn = isGameOwner
       ? `<button class="game-edit-btn" data-id="${game.id}" title="Редактировать">✏️</button>`
       : "";
 
@@ -4713,6 +5063,7 @@ function renderGames() {
           <div class="game-meta-row">
             <span class="game-meta-date">📅 ${formatGameDate(game.created_at)}</span>
             <span class="game-meta-downloads">⬇️ ${game.downloadCount}</span>
+            ${game.no_remix ? `<span class="game-no-remix-badge" title="Автор запретил скачивание">🔒 без ремиксов</span>` : ""}
           </div>
         </div>
         <div class="game-card-actions">
@@ -4766,6 +5117,12 @@ function renderGames() {
     if (egb) egb.addEventListener("click", () => openEditGameModal(game));
 
     // счётчик скачиваний
+    card.querySelectorAll(".game-play-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        openGamePlayer(btn.dataset.drive, btn.dataset.title);
+      });
+    });
+
     card.querySelectorAll(".game-download-btn").forEach(a => {
       a.addEventListener("click", () => registerGameDownload(a.dataset.gameId));
     });
@@ -4794,6 +5151,7 @@ function renderGames() {
 
     galleryGames.appendChild(card);
 
+    // рейтинг — строим после добавления в DOM
     // загружаем счётчик комментов и состояние гиперзадки
     loadGameCommentsCount(game.id);
     loadGameGigerState(game);
@@ -5033,6 +5391,9 @@ async function submitGameComment(gameId) {
 /* УДАЛЕНИЕ                                                             */
 /* ------------------------------------------------------------------ */
 async function deleteGame(id) {
+  if (!currentIdentity) { showGameToast("Нужно войти"); return; }
+  const { data: g } = await db.from(GAMES_TABLE).select("owner_code").eq("id", id).maybeSingle();
+  if (g && g.owner_code && g.owner_code !== currentIdentity.code) { showGameToast("Только автор может удалить игру"); return; }
   if (!confirm("Удалить игру и все её данные?")) return;
   await db.from(GAME_VERSIONS_TABLE).delete().eq("game_id", id);
   await db.from(GAME_COMMENTS_TABLE).delete().eq("game_id", id);
@@ -5085,7 +5446,7 @@ if (gameIconFileInput) {
 }
 
 if (gameModalCancel) gameModalCancel.addEventListener("click", () => gameModal.classList.remove("active"));
-if (gameModal) gameModal.addEventListener("click", e => { if (e.target === gameModal) gameModal.classList.remove("active"); });
+if (gameModal) gameModal.addEventListener("click", e => { if (e.target === gameModal && !isTextSelected()) gameModal.classList.remove("active"); });
 
 if (gameModalSave) {
   gameModalSave.addEventListener("click", async () => {
@@ -5113,6 +5474,8 @@ if (gameModalSave) {
     const authorInput = document.getElementById("gameAuthor").value.trim();
     const author     = authorInput || (whoAmI ? whoAmI.textContent.trim() : "Бурундук");
 
+    const noRemix = document.getElementById("gameNoRemix")?.checked || false;
+
     const { data: newGame, error: gameErr } = await db.from(GAMES_TABLE).insert([{
       title,
       description: document.getElementById("gameDesc").value.trim() || null,
@@ -5120,6 +5483,7 @@ if (gameModalSave) {
       owner_code: currentIdentity ? currentIdentity.code : null,
       owner_name: currentIdentity ? currentIdentity.name : (author || "Бурундук"),
       icon_url: iconUrl,
+      no_remix: noRemix,
     }]).select().single();
 
     if (gameErr) {
@@ -5174,7 +5538,7 @@ function openAddVersionModal(gameId, gameTitle) {
 }
 
 if (addVerModalCancel) addVerModalCancel.addEventListener("click", () => addVerModal.classList.remove("active"));
-if (addVerModal) addVerModal.addEventListener("click", e => { if (e.target === addVerModal) addVerModal.classList.remove("active"); });
+if (addVerModal) addVerModal.addEventListener("click", e => { if (e.target === addVerModal && !isTextSelected()) addVerModal.classList.remove("active"); });
 
 if (addVerModalSave) {
   addVerModalSave.addEventListener("click", async () => {
@@ -5214,6 +5578,15 @@ const editGameIconPreview   = document.getElementById("editGameIconPreview");
 const editGameIconPickBtn   = document.getElementById("editGameIconPickBtn");
 
 function openEditGameModal(game) {
+  const codeMatch = currentIdentity && game.owner_code && game.owner_code === currentIdentity.code;
+  const nameMatch = currentIdentity && !game.owner_code && (
+    (game.owner_name && game.owner_name === currentIdentity.name) ||
+    (game.author && game.author === currentIdentity.name)
+  );
+  if (!currentIdentity || (!codeMatch && !nameMatch)) {
+    showGameToast("Только автор может редактировать игру");
+    return;
+  }
   editGameId = game.id;
   editGameCurrentIconUrl = game.icon_url || null;
   pickedEditGameIcon = null;
@@ -5250,7 +5623,7 @@ if (editGameIconFileInput) {
 }
 
 if (editGameModalCancel) editGameModalCancel.addEventListener("click", () => editGameModal.classList.remove("active"));
-if (editGameModal) editGameModal.addEventListener("click", e => { if (e.target === editGameModal) editGameModal.classList.remove("active"); });
+if (editGameModal) editGameModal.addEventListener("click", e => { if (e.target === editGameModal && !isTextSelected()) editGameModal.classList.remove("active"); });
 
 if (editGameModalSave) {
   editGameModalSave.addEventListener("click", async () => {

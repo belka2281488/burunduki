@@ -2411,13 +2411,7 @@ main {
     padding: 18px 14px;
   }
 
-  /* Кнопка закрыть фото/видео — фиксируем чтобы не уезжала */
-  .lightbox > .lightbox-close {
-    position: fixed;
-    top: 10px;
-    right: 14px;
-    z-index: 1010;
-  }
+  /* Кнопка закрыть фото/видео — обрабатывается в блоке выше */
 }
 
 /* ==================================================================
@@ -2451,11 +2445,17 @@ main {
     padding: 12px;
   }
 
-  /* --- Табы вкладок: меньше padding --- */
+  /* --- Табы вкладок: горизонтальный скролл --- */
   .tabs {
     gap: 6px;
     margin-bottom: 8px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    justify-content: flex-start;
   }
+  .tabs::-webkit-scrollbar { display: none; }
   .tab-btn {
     padding: 7px 14px;
     font-size: 0.88rem;

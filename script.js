@@ -4596,7 +4596,7 @@ async function openGamePlayer(driveUrl, gameTitle) {
           <button class="game-player-close" title="Закрыть">✕</button>
         </div>
         <div class="game-player-status"></div>
-        <iframe class="game-player-frame" sandbox="allow-scripts allow-same-origin allow-forms allow-pointer-lock allow-popups" allowfullscreen></iframe>
+        <iframe class="game-player-frame" sandbox="allow-scripts allow-forms allow-pointer-lock allow-popups allow-modals" allowfullscreen></iframe>
       </div>`;
     document.body.appendChild(overlay);
     overlay.querySelector(".game-player-close").addEventListener("click", () => {

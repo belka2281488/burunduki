@@ -4710,42 +4710,62 @@ async function openGamePlayer(driveUrl, gameTitle) {
   var __blobMap = ${blobMapJson};
   function __resolve(p){
     if(!p||p.startsWith('blob:')||p.startsWith('data:')||p.startsWith('http')||p.startsWith('/')) return p;
-    var c = p.replace(/^\.\//,'');
-    return __blobMap[c] || p;
+    var c = p.replace(/^\.\//, '');
+    return __blobMap[c] || __blobMap[c.split('/').pop()] || p;
   }
-  document.addEventListener('DOMContentLoaded', function(){
-    document.querySelectorAll('img').forEach(function(img){
-      img.removeAttribute('loading');
-      img.decoding = 'sync';
+
+  // Патчим HTMLImageElement.prototype.src напрямую
+  var imgProto = HTMLImageElement.prototype;
+  var origSrcDesc = Object.getOwnPropertyDescriptor(imgProto, 'src');
+  if(!origSrcDesc) origSrcDesc = Object.getOwnPropertyDescriptor(Element.prototype, 'src');
+  if(origSrcDesc){
+    Object.defineProperty(imgProto, 'src', {
+      configurable: true, enumerable: true,
+      get: function(){ return origSrcDesc.get ? origSrcDesc.get.call(this) : this.getAttribute('src')||''; },
+      set: function(v){
+        var r = __resolve(v);
+        if(origSrcDesc.set) origSrcDesc.set.call(this, r); else this.setAttribute('src', r);
+      }
+    });
+  }
+
+  // Патчим audio/video
+  ['HTMLAudioElement','HTMLVideoElement'].forEach(function(name){
+    var proto = window[name] && window[name].prototype;
+    if(!proto) return;
+    var d = Object.getOwnPropertyDescriptor(proto, 'src') ||
+            Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src');
+    if(!d) return;
+    Object.defineProperty(proto, 'src', {
+      configurable: true, enumerable: true,
+      get: function(){ return d.get ? d.get.call(this) : this.getAttribute('src')||''; },
+      set: function(v){ var r=__resolve(v); if(d.set) d.set.call(this,r); else this.setAttribute('src',r); }
     });
   });
-  var _NImg = window.Image;
-  function PatchedImage(w,h){
-    var img = new _NImg(w,h);
-    Object.defineProperty(img,'src',{
-      configurable:true,
-      get:function(){return img.getAttribute('src')||'';},
-      set:function(v){img.setAttribute('src',__resolve(v));}
-    });
-    return img;
-  }
-  PatchedImage.prototype = _NImg.prototype;
-  window.Image = PatchedImage;
-  var _NCreate = document.createElement.bind(document);
-  document.createElement = function(tag){
-    var el = _NCreate(tag);
-    var t = tag.toLowerCase();
-    if(t==='img'||t==='audio'||t==='video'){
-      Object.defineProperty(el,'src',{
-        configurable:true,
-        get:function(){return el.getAttribute('src')||'';},
-        set:function(v){el.setAttribute('src',__resolve(v));}
-      });
-    }
-    return el;
-  };
+
+  // Патчим new Audio()
   var _NAudio = window.Audio;
   if(_NAudio) window.Audio = function(src){ return new _NAudio(__resolve(src||'')); };
+
+  // Патчим fetch для относительных путей
+  var _fetch = window.fetch;
+  window.fetch = function(input, init){
+    if(typeof input === 'string' && !input.startsWith('http') && !input.startsWith('blob:') && !input.startsWith('data:')){
+      var r = __resolve(input);
+      if(r !== input) return _fetch(r, init);
+    }
+    return _fetch(input, init);
+  };
+
+  // Патчим XMLHttpRequest
+  var _XHROpen = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function(method, url){
+    if(typeof url === 'string' && !url.startsWith('http') && !url.startsWith('blob:') && !url.startsWith('data:')){
+      var r = __resolve(url);
+      if(r !== url) return _XHROpen.call(this, method, r);
+    }
+    return _XHROpen.apply(this, arguments);
+  };
 })();
 <\/script>`;
     if (/<head[^>]*>/i.test(html)) {

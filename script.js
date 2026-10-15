@@ -2147,7 +2147,7 @@ async function loadTexts() {
   statusEl.textContent = "Загружаю тексты...";
   const { data, error } = await db
     .from(TEXT_TABLE)
-    .select("*")
+    .select("id, title, owner_code, owner_name, category_id, followers_only, gdoc_url, gdoc_refreshed_at, created_at")
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -2171,9 +2171,8 @@ function applyTextSearch() {
   if (currentAuthorFilter !== "all") base = base.filter(r => r.owner_code === currentAuthorFilter);
   if (query) base = base.filter(r => {
     const title = (r.title || "").toLowerCase();
-    const body = (r.body || "").toLowerCase();
     const name = displayNameFor(r.owner_code, r.owner_name).toLowerCase();
-    return title.includes(query) || body.includes(query) || name.includes(query);
+    return title.includes(query) || name.includes(query);
   });
   base = applySort(base, "text");
   renderTextGallery(base);
@@ -2193,7 +2192,7 @@ function renderTextGallery(records) {
 
     const previewText = record.body ? record.body.replace(/<[^>]*>/g, "").trim().slice(0, 120) : "";
     const hasGdoc = !!record.gdoc_url;
-    const hasMore = record.body && record.body.replace(/<[^>]*>/g, "").trim().length > 120;
+    const hasMore = record.body ? record.body.replace(/<[^>]*>/g, "").trim().length > 120 : true;
     const authorName = displayNameFor(record.owner_code, record.owner_name);
 
     card.innerHTML = `
@@ -2262,6 +2261,18 @@ async function openTextLightbox(record, index) {
     textLightboxAuthor.addEventListener("click", () => openProfile(record.owner_code));
   } else {
     textLightboxAuthor.style.display = "none";
+  }
+
+  // Load body on demand if not yet fetched (list query omits body for speed)
+  if (record.body === undefined) {
+    textLightboxBody.innerHTML = "<div style='color:#bbb;font-size:0.9em;'>Загружаю...</div>";
+    const { data: full } = await db.from(TEXT_TABLE).select("body, gdoc_refreshed_at").eq("id", record.id).single();
+    if (full) {
+      record.body = full.body || "";
+      record.gdoc_refreshed_at = full.gdoc_refreshed_at;
+    } else {
+      record.body = "";
+    }
   }
 
   // Show body — prefer cached body immediately, refresh from gdoc if >1 hour old
@@ -2445,8 +2456,9 @@ if (textCancel) textCancel.addEventListener("click", () => {
 });
 
 if (textLightboxEditBtn) textLightboxEditBtn.addEventListener("click", () => {
+  const recordToEdit = currentTextRecord;
   closeTextLightbox();
-  openTextModal(currentTextRecord || editingTextRecord);
+  openTextModal(recordToEdit);
 });
 
 if (textLightboxDeleteBtn) textLightboxDeleteBtn.addEventListener("click", async () => {

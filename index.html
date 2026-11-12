@@ -6,6 +6,13 @@
 <title>Галерея бурундуков Кирила</title>
 <link rel="icon" type="image/png" href="assets/Favicon.png">
 <link rel="stylesheet" href="style.css">
+<script>
+  // Применяем тему ДО рендера — чтобы не было вспышки
+  (function(){
+    if(localStorage.getItem("burunduki_theme")==="dark")
+      document.documentElement.setAttribute("data-theme","dark");
+  })();
+</script>
 <style>
 /* ── Кнопка Играть ── */
 .game-play-btn {
@@ -74,6 +81,7 @@
     <button id="changeNameBtn" class="link-btn">сменить имя</button>
     <button id="myProfileBtn" class="link-btn">мой профиль</button>
     <button id="myCodeBtn" class="activity-bell-btn" title="Мой код входа" aria-label="Мой код входа">🔑</button>
+    <button id="themeSwitchBtn" class="theme-toggle-btn" title="Сменить тему" aria-label="Сменить тему">🌙</button>
     <button id="activityBellBtn" class="activity-bell-btn" title="Центр активности" aria-label="Центр активности">
       🔔<span id="activityBadge" class="activity-badge hidden">0</span>
     </button>

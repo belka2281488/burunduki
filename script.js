@@ -1,3 +1,34 @@
+/* ==================================================================
+   ТЁМНАЯ ТЕМА — инициализация (сразу, до рендера)
+   ================================================================== */
+(function() {
+  const saved = localStorage.getItem("burunduki_theme");
+  if (saved === "dark") document.documentElement.setAttribute("data-theme", "dark");
+})();
+
+function applyTheme(theme) {
+  if (theme === "dark") {
+    document.documentElement.setAttribute("data-theme", "dark");
+  } else {
+    document.documentElement.removeAttribute("data-theme");
+  }
+  localStorage.setItem("burunduki_theme", theme);
+  const btn = document.getElementById("themeSwitchBtn");
+  if (btn) btn.textContent = theme === "dark" ? "☀️" : "🌙";
+}
+
+function initThemeButton() {
+  const btn = document.getElementById("themeSwitchBtn");
+  if (!btn) return;
+  // Устанавливаем правильную иконку при загрузке
+  const current = localStorage.getItem("burunduki_theme") || "light";
+  btn.textContent = current === "dark" ? "☀️" : "🌙";
+  btn.addEventListener("click", () => {
+    const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+    applyTheme(isDark ? "light" : "dark");
+  });
+}
+
 const PHOTO_TABLE = "burunduki";
 const VIDEO_TABLE = "burunduki_videos";
 const TEXT_TABLE = "burunduk_texts";
@@ -4190,6 +4221,7 @@ bannerFileInput.addEventListener("change", () => {
 
 /* ---------- Старт ---------- */
 async function boot() {
+  initThemeButton();
   refreshWhoAmI();
   if (!initSupabase()) return;
 

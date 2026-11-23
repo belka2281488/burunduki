@@ -744,9 +744,7 @@ function switchTab(tab) {
   if (uploadTextBtn) uploadTextBtn.classList.toggle("hidden", tab !== "text");
   if (uploadAudioBtn) uploadAudioBtn.classList.toggle("hidden", tab !== "audio" || currentAudioSectionMode !== "audio");
   if (uploadPlaylistBtn) uploadPlaylistBtn.classList.toggle("hidden", tab !== "audio" || currentAudioSectionMode !== "playlists");
-  const uploadAiVoiceBtn = document.getElementById("uploadAiVoiceBtn");
-  if (uploadAiVoiceBtn) uploadAiVoiceBtn.classList.toggle("hidden", tab !== "audio" || currentAudioSectionMode !== "ai-voices");
-  document.getElementById("audioAiNarrationBtn")?.classList.toggle("active", tab === "audio" && currentAudioSectionMode === "ai-voices");
+
   document.getElementById("audioLibraryBtn")?.classList.toggle("active", tab === "audio" && currentAudioSectionMode === "audio");
   document.getElementById("audioPlaylistsBtn")?.classList.toggle("active", tab === "audio" && currentAudioSectionMode === "playlists");
   const audioSectionActions = document.getElementById("audioSectionActions");
@@ -757,9 +755,7 @@ function switchTab(tab) {
   if (galleryText) galleryText.classList.toggle("hidden", tab !== "text");
   if (galleryAudio) galleryAudio.classList.toggle("hidden", tab !== "audio" || currentAudioSectionMode !== "audio");
   if (galleryPlaylists) galleryPlaylists.classList.toggle("hidden", tab !== "audio" || currentAudioSectionMode !== "playlists");
-  const galleryAiVoices = document.getElementById("galleryAiVoices");
-  if (galleryAiVoices) galleryAiVoices.classList.toggle("hidden", tab !== "audio" || currentAudioSectionMode !== "ai-voices");
-  if (tab !== "audio" || currentAudioSectionMode !== "ai-voices") document.getElementById("aiVoiceDetail")?.classList.add("hidden");
+
   if (galleryGames) galleryGames.classList.toggle("hidden", tab !== "games");
 
   const isGames = tab === "games";
@@ -809,7 +805,7 @@ function applySearch() {
 
   if (currentTab === "audio") {
     if (currentAudioSectionMode === "playlists" && typeof applyAudioPlaylistSearch === "function") applyAudioPlaylistSearch();
-    else if (currentAudioSectionMode === "ai-voices" && typeof applyAiVoiceSearch === "function") applyAiVoiceSearch();
+
     else applyAudioSearch();
     return;
   }

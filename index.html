@@ -73,7 +73,7 @@
 <body>
 
 <header class="header">
-  <h1>🐿️ Галерея бурундуков Кирила</h1>
+  <h1><img src="assets/Favicon.png" style="height:1em;vertical-align:-0.15em;" alt=""> Галерея бурундуков Кирила</h1>
   <p class="subtitle">Все бурундуки Кирила в одном месте</p>
   <div class="who-am-i">
     Ты: <span id="whoAmI">—</span>
@@ -94,7 +94,7 @@
     <button id="activityCloseBtn" class="link-btn">закрыть</button>
   </div>
   <div id="activityList" class="activity-list">
-    <div class="activity-empty">Пока тихо 🐿️</div>
+    <div class="activity-empty">Пока тихо <img src="assets/Favicon.png" style="height:1em;vertical-align:-0.15em;" alt=""></div>
   </div>
 </div>
 
@@ -170,7 +170,7 @@
       <div class="audio-section-nav">
         <button id="audioLibraryBtn" class="audio-section-nav-btn active" type="button">🎵 Аудио</button>
         <button id="audioPlaylistsBtn" class="audio-section-nav-btn" type="button">📚 Плейлисты</button>
-        <button id="audioAiNarrationBtn" class="audio-section-nav-btn" type="button">✨ ИИ-озвучка</button>
+
       </div>
       <button id="uploadAudioBtn" class="pick-btn" type="button">＋ Добавить трек</button>
       <button id="uploadPlaylistBtn" class="pick-btn hidden" type="button">＋ Добавить плейлист</button>
@@ -184,39 +184,7 @@
   <div id="galleryText" class="gallery gallery-text hidden"></div>
   <div id="galleryAudio" class="gallery gallery-audio hidden"></div>
   <div id="galleryPlaylists" class="gallery gallery-audio hidden"></div>
-  <div id="galleryAiVoices" class="gallery gallery-audio hidden"></div>
-  <section id="aiVoiceDetail" class="ai-voice-detail hidden" aria-live="polite"></section>
-  <div id="aiVoiceCreateModal" class="modal">
-    <div class="modal-box ai-voice-modal-box">
-      <h3>🎙️ Добавить голос</h3>
-      <label class="modal-label" for="aiVoiceTitle">Название</label>
-      <input id="aiVoiceTitle" class="modal-input" maxlength="70" placeholder="Например, Голос Бурундука">
-      <label class="modal-label" for="aiVoiceDescription">Описание (необязательно)</label>
-      <textarea id="aiVoiceDescription" class="modal-input" rows="3" maxlength="500" placeholder="Расскажи об этом голосе"></textarea>
-      <label class="modal-label">Образец аудио</label>
-      <div class="ai-voice-source-switch">
-        <button id="aiVoiceUploadSource" class="tool-btn active" type="button">Загрузить файл</button>
-        <button id="aiVoiceLibrarySource" class="tool-btn" type="button">Выбрать из аудиогалереи</button>
-      </div>
-      <div id="aiVoiceUploadPanel">
-        <input id="aiVoiceSampleFile" type="file" accept=".mp3,.wav,audio/mpeg,audio/wav" class="modal-input">
-        <div class="modal-hint">Лучше использовать чистую запись речи без музыки и фонового шума. Формат MP3 или WAV, 1–60 секунд, до 20 МБ.</div>
-      </div>
-      <div id="aiVoiceLibraryPanel" class="hidden">
-        <select id="aiVoiceAudioSelect" class="modal-input"><option value="">Загружаю аудиогалерею…</option></select>
-      </div>
-      <label class="modal-label" for="aiVoiceCategory">Раздел публикации</label>
-      <select id="aiVoiceCategory" class="modal-input"></select>
-      <div id="aiVoiceNewCategoryWrap" class="hidden">
-        <input id="aiVoiceNewCategory" class="modal-input" maxlength="50" placeholder="Название нового раздела">
-      </div>
-      <div id="aiVoiceUploadProgress" class="hidden ai-voice-progress">Загружаю образец…</div>
-      <div class="modal-actions">
-        <button id="aiVoiceCreateCancel" class="tool-btn" type="button">Отмена</button>
-        <button id="aiVoiceCreateSave" class="pick-btn small" type="button">Опубликовать голос</button>
-      </div>
-    </div>
-  </div>
+
 
   <div id="galleryGames" class="gallery gallery-games hidden"></div>
 
@@ -297,7 +265,7 @@
   <div id="profileGalleryPhoto" class="gallery"></div>
   <div id="profileGalleryVideo" class="gallery hidden"></div>
   <div id="profileGalleryText" class="gallery gallery-text hidden"></div>
-  <div id="profileEmpty" class="profile-empty hidden">Пока здесь пусто 🐿️</div>
+  <div id="profileEmpty" class="profile-empty hidden">Пока здесь пусто <img src="assets/Favicon.png" style="height:1em;vertical-align:-0.15em;" alt=""></div>
 </div>
 
 <!-- модалка редактирования профиля -->
@@ -381,14 +349,14 @@
           Войти через Google
         </button>
         <div style="text-align:center;color:var(--text-muted,#888);font-size:0.83em;">или</div>
-        <button id="authGoRegister" class="pick-btn small" style="background:var(--bg-secondary,#1a1a1a);color:var(--text,#fff);border:1px solid var(--border,#333);">🐿️ Создать аккаунт без Google</button>
+        <button id="authGoRegister" class="pick-btn small" style="background:var(--bg-secondary,#1a1a1a);color:var(--text,#fff);border:1px solid var(--border,#333);"><img src="assets/Favicon.png" style="height:1em;vertical-align:-0.15em;" alt=""> Создать аккаунт без Google</button>
         <button id="authGoLogin" class="link-btn">У меня уже есть аккаунт (без Google)</button>
       </div>
     </div>
 
     <!-- Экран 5: смена имени (уже вошёл) -->
     <div id="authScreen4" style="display:none;">
-      <h3>Сменить имя 🐿️</h3>
+      <h3>Сменить имя <img src="assets/Favicon.png" style="height:1em;vertical-align:-0.15em;" alt=""></h3>
       <label class="modal-label">Новое имя</label>
       <input type="text" id="renameInput" class="modal-input" placeholder="твоё имя">
       <p id="renameError" style="color:var(--danger,#eb5757);font-size:0.83em;margin-top:6px;display:none;"></p>
@@ -491,7 +459,7 @@
 <!-- модалка добавления / редактирования ФОТО -->
 <div id="uploadModal" class="modal">
   <div class="modal-box">
-    <h3 id="modalTitle">Новый бурундук 🐿️</h3>
+    <h3 id="modalTitle">Новый бурундук <img src="assets/Favicon.png" style="height:1em;vertical-align:-0.15em;" alt=""></h3>
     <div class="modal-preview-wrap">
       <img id="uploadPreview" class="modal-preview" alt="превью">
     </div>
@@ -550,7 +518,7 @@
       <button type="button" class="source-btn active" data-source="google_drive">📁 Google Drive</button>
       <button type="button" class="source-btn" data-source="youtube">▶️ YouTube</button>
       <button type="button" class="source-btn" data-source="tiktok">🎵 TikTok</button>
-      <button type="button" class="source-btn" data-source="tenor">🐿️ Tenor</button>
+      <button type="button" class="source-btn" data-source="tenor"><img src="assets/Favicon.png" style="height:1em;vertical-align:-0.15em;" alt=""> Tenor</button>
       <button type="button" class="source-btn" data-source="other">🔗 Другое</button>
     </div>
 
@@ -1180,6 +1148,6 @@
 <script src="config.js"></script>
 <script src="script.js"></script>
 <script src="playlists.js"></script>
-<script src="ai-voices.js"></script>
+
 </body>
 </html>

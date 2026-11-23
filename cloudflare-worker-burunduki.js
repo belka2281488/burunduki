@@ -5,15 +5,12 @@
  *   GET  /?id=<Google-Drive-file-id>  - existing game ZIP proxy
  *   POST /audio/upload?folder=audio|audio-covers|audio-voices - upload audio to R2
  *   DELETE /audio/object?key=<R2-key> - delete an audio object from R2
- *   POST /upload and /import - AI voice sample upload/import to R2
- *   POST /generate - XTTS-v2 generation (generated result is streamed, never stored)
  *   POST /admin/migrate-audio - migrate Supabase audio objects to R2, then delete source objects
  *
  * Bindings: R2_BUCKET (existing R2 bucket)
  * Vars: R2_PUBLIC_BASE_URL, SUPABASE_URL, ALLOWED_ORIGIN
- * Secrets: HF_TOKEN, SUPABASE_SERVICE_ROLE_KEY, AUDIO_MIGRATION_SECRET
+ * Secrets: SUPABASE_SERVICE_ROLE_KEY, AUDIO_MIGRATION_SECRET
  */
-const SPACE = "https://hasanbasbunar-voice-cloning-xtts-v2.hf.space";
 const AUDIO_FOLDERS = new Set(["audio", "audio-covers", "audio-voices"]);
 const SUPABASE_BUCKET = "burunduki";
 
@@ -37,57 +34,9 @@ function publicUrl(env, key) {
   return `${base}/${String(key).split("/").map(encodeURIComponent).join("/")}`;
 }
 function safeAudioKey(key) {
-  return typeof key === "string" && /^(audio|audio-covers|audio-voices|ai-voice-samples)\/[A-Za-z0-9._/-]+$/.test(key) && !key.includes("..") && !key.startsWith("/");
+  return typeof key === "string" && /^(audio|audio-covers|audio-voices)\/[A-Za-z0-9._/-]+$/.test(key) && !key.includes("..") && !key.startsWith("/");
 }
-function detectLanguage(text) {
-  if (/[\u3040-\u30ff]/.test(text)) return "Japanese";
-  if (/[\uac00-\ud7af]/.test(text)) return "Korean";
-  if (/[\u4e00-\u9fff]/.test(text)) return "Chinese";
-  if (/[\u0600-\u06ff]/.test(text)) return "Arabic";
-  if (/[\u0900-\u097f]/.test(text)) return "Hindi";
-  if (/[ąćęłńóśźż]/i.test(text)) return "Polish";
-  if (/[ğışİ]/.test(text)) return "Turkish";
-  if (/[äöüß]/i.test(text)) return "German";
-  if (/[àâçéèêëîïôûùüÿœæ]/i.test(text)) return "French";
-  if (/[ñ¿¡]/i.test(text)) return "Spanish";
-  if (/[ãõ]/i.test(text)) return "Portuguese";
-  if (/[а-яёА-ЯЁ]/.test(text)) return "Russian";
-  if (/[ěščřžýáíéůďťň]/i.test(text)) return "Czech";
-  if (/[őű]/i.test(text)) return "Hungarian";
-  if (/[a-z]/i.test(text)) return "English";
-  return "English";
-}
-async function readGradioResult(response) {
-  if (!response.ok) throw new Error(`Hugging Face returned HTTP ${response.status}: ${(await response.text()).slice(0, 700)}`);
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const blocks = buffer.split(/\r?\n\r?\n/);
-    buffer = blocks.pop() || "";
-    for (const block of blocks) {
-      const event = (block.match(/^event:\s*(.+)$/m) || [])[1] || "";
-      const dataLine = block.split(/\r?\n/).find(line => line.startsWith("data:"));
-      if (!dataLine) continue;
-      const payload = dataLine.slice(5).trim();
-      if (event === "error") throw new Error(payload || "Hugging Face synthesis failed");
-      if (event === "complete") return JSON.parse(payload);
-    }
-  }
-  throw new Error("Hugging Face closed the generation stream without a completed result");
-}
-function getAudioUrl(result) {
-  const item = Array.isArray(result) ? result[0] : result;
-  if (typeof item === "string") return item;
-  if (item && typeof item === "object") {
-    if (item.url) return item.url;
-    if (item.path) return item.path.startsWith("http") ? item.path : `${SPACE}/gradio_api/file=${encodeURIComponent(item.path)}`;
-  }
-  throw new Error("Hugging Face response did not contain an audio file");
-}
+
 function supabaseHeaders(env, extra = {}) {
   const key = env.SUPABASE_SERVICE_ROLE_KEY;
   return { apikey: key, Authorization: `Bearer ${key}`, ...extra };
@@ -205,63 +154,6 @@ export default {
         return json({ ok: true }, 200, headers);
       }
 
-      if (url.pathname === "/upload" && request.method === "POST") {
-        const form = await request.formData();
-        const file = form.get("file");
-        if (!(file instanceof File)) return json({ error: "Upload field 'file' is required" }, 400, headers);
-        if (!file.size || file.size > 20 * 1024 * 1024) return json({ error: "Voice sample must be between 1 byte and 20 MB" }, 413, headers);
-        const ext = (file.name.split(".").pop() || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-        if (!["mp3", "wav"].includes(ext)) return json({ error: "Voice sample must be MP3 or WAV" }, 415, headers);
-        const key = `ai-voice-samples/${crypto.randomUUID()}.${ext}`;
-        await env.R2_BUCKET.put(key, file.stream(), { httpMetadata: { contentType: file.type || (ext === "wav" ? "audio/wav" : "audio/mpeg"), cacheControl: "public, max-age=31536000, immutable" } });
-        return json({ key, url: publicUrl(env, key) }, 201, headers);
-      }
-
-      if (url.pathname === "/import" && request.method === "POST") {
-        const body = await request.json();
-        const source = new URL(String(body.url || ""));
-        const allowedHosts = [env.SUPABASE_URL ? new URL(env.SUPABASE_URL).host : "", env.R2_PUBLIC_BASE_URL ? new URL(env.R2_PUBLIC_BASE_URL).host : ""].filter(Boolean);
-        if (source.protocol !== "https:" || !allowedHosts.includes(source.host)) return json({ error: "Audio import is allowed only from this site's Supabase or configured R2 domain" }, 400, headers);
-        const fetched = await fetch(source.toString());
-        if (!fetched.ok) return json({ error: `Could not read selected audio (${fetched.status})` }, 502, headers);
-        const contentType = (fetched.headers.get("Content-Type") || "").split(";")[0].toLowerCase();
-        const extFromUrl = (source.pathname.split(".").pop() || "").toLowerCase();
-        const ext = contentType.includes("wav") || extFromUrl === "wav" ? "wav" : (contentType.includes("mpeg") || contentType.includes("mp3") || extFromUrl === "mp3" ? "mp3" : "");
-        if (!ext) return json({ error: "Selected audio must be MP3 or WAV" }, 415, headers);
-        const bytes = await fetched.arrayBuffer();
-        if (bytes.byteLength > 20 * 1024 * 1024) return json({ error: "Voice sample must be 20 MB or smaller" }, 413, headers);
-        const key = `ai-voice-samples/${crypto.randomUUID()}.${ext}`;
-        await env.R2_BUCKET.put(key, bytes, { httpMetadata: { contentType: ext === "wav" ? "audio/wav" : "audio/mpeg", cacheControl: "public, max-age=31536000, immutable" } });
-        return json({ key, url: publicUrl(env, key) }, 201, headers);
-      }
-
-      if (url.pathname === "/generate" && request.method === "POST") {
-        if (!env.HF_TOKEN) return json({ error: "HF_TOKEN secret is not configured" }, 500, headers);
-        const body = await request.json();
-        const text = String(body.text || "").trim();
-        const referenceAudioUrl = String(body.referenceAudioUrl || "").trim();
-        if (!text) return json({ error: "Text is required" }, 400, headers);
-        if (text.length > 5000) return json({ error: "Text must be 5000 characters or fewer" }, 413, headers);
-        if (!/^https:\/\//i.test(referenceAudioUrl) || !env.R2_PUBLIC_BASE_URL || !referenceAudioUrl.startsWith(env.R2_PUBLIC_BASE_URL.replace(/\/$/, "") + "/")) return json({ error: "Voice sample must be a public R2 URL from this project" }, 400, headers);
-        const language = detectLanguage(text);
-        const args = [text, referenceAudioUrl, null, language, 0.75, 1.0, true, 5.0, 1.0, 30, 50, 0.85, true, -45, 300, 100, "Native XTTS splitting", 250, false];
-        const auth = { Authorization: `Bearer ${env.HF_TOKEN}`, "Content-Type": "application/json" };
-        const start = await fetch(`${SPACE}/gradio_api/call/voice_clone_synthesis`, { method: "POST", headers: auth, body: JSON.stringify({ data: args }) });
-        if (!start.ok) return json({ error: `Could not start Hugging Face job (${start.status}): ${(await start.text()).slice(0, 500)}` }, 502, headers);
-        const started = await start.json();
-        if (!started.event_id) return json({ error: "Hugging Face did not return a job ID" }, 502, headers);
-        const stream = await fetch(`${SPACE}/gradio_api/call/voice_clone_synthesis/${started.event_id}`, { headers: { Authorization: `Bearer ${env.HF_TOKEN}`, Accept: "text/event-stream" } });
-        const result = await readGradioResult(stream);
-        const audioUrl = getAudioUrl(result);
-        const absoluteAudioUrl = audioUrl.startsWith("http") ? audioUrl : `${SPACE}${audioUrl.startsWith("/") ? "" : "/"}${audioUrl}`;
-        const audioResponse = await fetch(absoluteAudioUrl, { headers: { Authorization: `Bearer ${env.HF_TOKEN}` } });
-        if (!audioResponse.ok) throw new Error(`Could not download generated audio (${audioResponse.status})`);
-        const out = new Headers(headers);
-        out.set("Content-Type", audioResponse.headers.get("Content-Type") || "audio/mpeg");
-        out.set("Content-Disposition", 'attachment; filename="burunduki-generated.mp3"');
-        out.set("Cache-Control", "no-store");
-        return new Response(audioResponse.body, { status: 200, headers: out });
-      }
 
       if (url.pathname === "/admin/migrate-audio" && request.method === "POST") {
         if (!env.AUDIO_MIGRATION_SECRET || request.headers.get("Authorization") !== `Bearer ${env.AUDIO_MIGRATION_SECRET}`) return json({ error: "Unauthorized" }, 401, headers);

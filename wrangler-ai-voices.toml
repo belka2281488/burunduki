@@ -1,0 +1,11 @@
+name = "burunduki-ai-voices"
+main = "cloudflare-worker-ai-voices.js"
+compatibility_date = "2026-11-23"
+
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "YOUR_EXISTING_R2_BUCKET_NAME"
+
+[vars]
+R2_PUBLIC_BASE_URL = "https://YOUR_R2_PUBLIC_DOMAIN"\nSUPABASE_URL = "https://hsohgexbhznvmxbotjpp.supabase.co"
+ALLOWED_ORIGIN = "https://YOUR_SITE_DOMAIN"

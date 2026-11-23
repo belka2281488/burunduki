@@ -76,10 +76,16 @@ create table if not exists burunduki_videos (
   source text not null default 'other',
   name text not null,
   description text,
+  preview_r2_url text,
+  preview_r2_key text,
   owner_name text,
   owner_code text,
   created_at timestamptz not null default now()
 );
+
+alter table burunduki_videos
+  add column if not exists preview_r2_url text,
+  add column if not exists preview_r2_key text;
 
 alter table burunduki_videos enable row level security;
 

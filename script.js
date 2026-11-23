@@ -32,6 +32,7 @@ function initThemeButton() {
 const PHOTO_TABLE = "burunduki";
 const VIDEO_TABLE = "burunduki_videos";
 const TEXT_TABLE = "burunduk_texts";
+const AUDIO_TABLE = "burunduk_audio";
 const CATEGORY_TABLE = "burunduk_categories";
 
 let allCategories = [];
@@ -104,6 +105,11 @@ const galleryPhoto = document.getElementById("galleryPhoto");
 const galleryVideo = document.getElementById("galleryVideo");
 const galleryText = document.getElementById("galleryText");
 const galleryGames = document.getElementById("galleryGames");
+const tabAudio         = document.getElementById("tabAudio");
+const galleryAudio     = document.getElementById("galleryAudio");
+const uploadAudioBtn   = document.getElementById("uploadAudioBtn");
+const uploadPlaylistBtn = document.getElementById("uploadPlaylistBtn");
+const galleryPlaylists = document.getElementById("galleryPlaylists");
 const uploadPhotoBtn = document.getElementById("uploadPhotoBtn");
 const uploadVideoBtn = document.getElementById("uploadVideoBtn");
 const uploadTextBtn = document.getElementById("uploadTextBtn");
@@ -183,6 +189,9 @@ const uploadDescription = document.getElementById("uploadDescription");
 const uploadCancel = document.getElementById("uploadCancel");
 const uploadConfirm = document.getElementById("uploadConfirm");
 const uploadCategory = document.getElementById("uploadCategory");
+const audioCategory = document.getElementById("audioCategory");
+const newAudioCategoryWrap = document.getElementById("newAudioCategoryWrap");
+const newAudioCategoryName = document.getElementById("newAudioCategoryName");
 const newCategoryWrap = document.getElementById("newCategoryWrap");
 const newCategoryName = document.getElementById("newCategoryName");
 const uploadFollowersOnly = document.getElementById("uploadFollowersOnly");
@@ -287,6 +296,44 @@ const videoName = document.getElementById("videoName");
 const videoDescription = document.getElementById("videoDescription");
 const videoCancel = document.getElementById("videoCancel");
 const videoConfirm = document.getElementById("videoConfirm");
+const videoPreviewImage = document.getElementById("videoPreviewImage");
+const videoPreviewFileBtn = document.getElementById("videoPreviewFileBtn");
+const videoPreviewGalleryBtn = document.getElementById("videoPreviewGalleryBtn");
+const videoPreviewFileInput = document.getElementById("videoPreviewFileInput");
+let pickedVideoPreviewFile = null;
+let selectedVideoPreviewUrl = null;
+let selectedVideoPreviewKey = null;
+
+function showVideoPreview(url) {
+  if (!videoPreviewImage) return;
+  if (url) { videoPreviewImage.src = url; videoPreviewImage.classList.remove("hidden"); }
+  else { videoPreviewImage.removeAttribute("src"); videoPreviewImage.classList.add("hidden"); }
+}
+function resetVideoPreview(url = null, key = null) {
+  pickedVideoPreviewFile = null;
+  selectedVideoPreviewUrl = url;
+  selectedVideoPreviewKey = key;
+  if (videoPreviewFileInput) videoPreviewFileInput.value = "";
+  showVideoPreview(url);
+}
+if (videoPreviewFileBtn) videoPreviewFileBtn.addEventListener("click", () => videoPreviewFileInput?.click());
+if (videoPreviewFileInput) videoPreviewFileInput.addEventListener("change", () => {
+  const file = videoPreviewFileInput.files?.[0];
+  videoPreviewFileInput.value = "";
+  if (!file) return;
+  if (!file.type.startsWith("image/")) { showToast("Выбери файл изображения"); return; }
+  pickedVideoPreviewFile = file;
+  selectedVideoPreviewUrl = null;
+  selectedVideoPreviewKey = null;
+  showVideoPreview(URL.createObjectURL(file));
+});
+if (videoPreviewGalleryBtn) videoPreviewGalleryBtn.addEventListener("click", () => openPhotoPicker(url => {
+  pickedVideoPreviewFile = null;
+  selectedVideoPreviewUrl = url;
+  selectedVideoPreviewKey = null;
+  showVideoPreview(url);
+}));
+
 const videoCategory = document.getElementById("videoCategory");
 const newVideoCategoryWrap = document.getElementById("newVideoCategoryWrap");
 const newVideoCategoryName = document.getElementById("newVideoCategoryName");
@@ -339,8 +386,8 @@ const ratingEls = {
   },
 };
 
-let selectedRank = { photo: null, video: null, text: null };
-let currentRatingTarget = { photo: null, video: null, text: null };
+let selectedRank = { photo: null, video: null, text: null, audio: null };
+let currentRatingTarget = { photo: null, video: null, text: null, audio: null };
 
 /* ---------- DOM: комментарии (отдельная лента, не привязана к оценке) ---------- */
 const commentEls = {
@@ -363,7 +410,7 @@ const commentEls = {
 };
 
 // Кому сейчас отвечаем: { id, name } комментария или null (обычный комментарий).
-let commentReplyTarget = { photo: null, video: null, game: {} };
+let commentReplyTarget = { photo: null, video: null, audio: null, game: {} };
 
 /* ---------- DOM: гиперзадки ---------- */
 const gigerEls = {
@@ -383,7 +430,7 @@ const gigerEls = {
 
 // true, если текущий пользователь уже подарил гиперзадку текущей карточке
 // (в таком случае чекбокс вообще не показываем — дарить больше нечего)
-let alreadyGifted = { photo: false, video: false, text: false };
+let alreadyGifted = { photo: false, video: false, text: false, audio: false };
 
 let db = null;
 
@@ -616,6 +663,7 @@ function isOwner(record) {
 }
 
 let currentTab = "video";
+let currentAudioSectionMode = "audio";
 let currentPickedFile = null;
 let editingPhotoRecord = null;
 let currentPhotoRecord = null;
@@ -681,13 +729,37 @@ function switchTab(tab) {
   tabPhoto.classList.toggle("active", tab === "photo");
   if (tabText) tabText.classList.toggle("active", tab === "text");
   if (tabGames) tabGames.classList.toggle("active", tab === "games");
+  if (tabAudio) tabAudio.classList.toggle("active", tab === "audio");
+  if (tab !== "audio") {
+    document.getElementById("playlistsModal")?.classList.add("hidden");
+  }
+  if (tab === "audio") {
+    currentAudioSectionMode = "audio";
+    document.getElementById("audioLibraryBtn")?.classList.add("active");
+    document.getElementById("audioPlaylistsBtn")?.classList.remove("active");
+    document.getElementById("playlistsModal")?.classList.add("hidden");
+  }
   uploadVideoBtn.classList.toggle("hidden", tab !== "video");
   uploadPhotoBtn.classList.toggle("hidden", tab !== "photo");
   if (uploadTextBtn) uploadTextBtn.classList.toggle("hidden", tab !== "text");
+  if (uploadAudioBtn) uploadAudioBtn.classList.toggle("hidden", tab !== "audio" || currentAudioSectionMode !== "audio");
+  if (uploadPlaylistBtn) uploadPlaylistBtn.classList.toggle("hidden", tab !== "audio" || currentAudioSectionMode !== "playlists");
+  const uploadAiVoiceBtn = document.getElementById("uploadAiVoiceBtn");
+  if (uploadAiVoiceBtn) uploadAiVoiceBtn.classList.toggle("hidden", tab !== "audio" || currentAudioSectionMode !== "ai-voices");
+  document.getElementById("audioAiNarrationBtn")?.classList.toggle("active", tab === "audio" && currentAudioSectionMode === "ai-voices");
+  document.getElementById("audioLibraryBtn")?.classList.toggle("active", tab === "audio" && currentAudioSectionMode === "audio");
+  document.getElementById("audioPlaylistsBtn")?.classList.toggle("active", tab === "audio" && currentAudioSectionMode === "playlists");
+  const audioSectionActions = document.getElementById("audioSectionActions");
+  if (audioSectionActions) audioSectionActions.classList.toggle("hidden", tab !== "audio");
   if (uploadGameBtn) uploadGameBtn.classList.toggle("hidden", tab !== "games");
   galleryVideo.classList.toggle("hidden", tab !== "video");
   galleryPhoto.classList.toggle("hidden", tab !== "photo");
   if (galleryText) galleryText.classList.toggle("hidden", tab !== "text");
+  if (galleryAudio) galleryAudio.classList.toggle("hidden", tab !== "audio" || currentAudioSectionMode !== "audio");
+  if (galleryPlaylists) galleryPlaylists.classList.toggle("hidden", tab !== "audio" || currentAudioSectionMode !== "playlists");
+  const galleryAiVoices = document.getElementById("galleryAiVoices");
+  if (galleryAiVoices) galleryAiVoices.classList.toggle("hidden", tab !== "audio" || currentAudioSectionMode !== "ai-voices");
+  if (tab !== "audio" || currentAudioSectionMode !== "ai-voices") document.getElementById("aiVoiceDetail")?.classList.add("hidden");
   if (galleryGames) galleryGames.classList.toggle("hidden", tab !== "games");
 
   const isGames = tab === "games";
@@ -713,6 +785,7 @@ function switchTab(tab) {
   if (!isGames) renderCategoryTabs();
   if (tab === "video") loadVideos();
   else if (tab === "text") loadTexts();
+  else if (tab === "audio") loadAudio();
   else if (tab === "games") loadGames();
   else loadPhotos();
 }
@@ -720,6 +793,7 @@ function switchTab(tab) {
 tabVideo.addEventListener("click", () => switchTab("video"));
 tabPhoto.addEventListener("click", () => switchTab("photo"));
 if (tabText) tabText.addEventListener("click", () => switchTab("text"));
+if (tabAudio) tabAudio.addEventListener("click", () => switchTab("audio"));
 if (tabGames) tabGames.addEventListener("click", () => switchTab("games"));
 
 /* ==================================================================
@@ -730,6 +804,13 @@ function applySearch() {
 
   if (currentTab === "text") {
     applyTextSearch();
+    return;
+  }
+
+  if (currentTab === "audio") {
+    if (currentAudioSectionMode === "playlists" && typeof applyAudioPlaylistSearch === "function") applyAudioPlaylistSearch();
+    else if (currentAudioSectionMode === "ai-voices" && typeof applyAiVoiceSearch === "function") applyAiVoiceSearch();
+    else applyAudioSearch();
     return;
   }
 
@@ -800,7 +881,7 @@ async function loadCategories() {
 }
 
 function fillCategorySelect() {
-  [uploadCategory, videoCategory].forEach((selectEl) => {
+  [uploadCategory, videoCategory, audioCategory, document.getElementById("playlistPublishCategory")].forEach((selectEl) => {
     if (!selectEl) return;
     selectEl.innerHTML = "";
     allCategories.forEach((cat) => {
@@ -835,6 +916,18 @@ if (videoCategory) {
     }
   });
 }
+if (audioCategory) {
+  audioCategory.addEventListener("change", () => {
+    newAudioCategoryWrap?.classList.toggle("hidden", audioCategory.value !== NEW_CATEGORY_VALUE);
+  });
+}
+const playlistPublishCategory = document.getElementById("playlistPublishCategory");
+const playlistPublishNewCategoryWrap = document.getElementById("playlistPublishNewCategoryWrap");
+if (playlistPublishCategory) {
+  playlistPublishCategory.addEventListener("change", () => {
+    playlistPublishNewCategoryWrap?.classList.toggle("hidden", playlistPublishCategory.value !== NEW_CATEGORY_VALUE);
+  });
+}
 
 function renderCategoryTabs() {
   if (!categoryTabsEl) return;
@@ -842,6 +935,8 @@ function renderCategoryTabs() {
 
   // Показываем только разделы, разрешённые для текущей вкладки
   const visibleCats = allCategories.filter((cat) => {
+    // Аудио и плейлисты используют те же разделы, что и фотогалерея.
+    if (currentTab === "audio") return true;
     if (!cat.allowed_tabs || cat.allowed_tabs.length === 0) return true;
     return cat.allowed_tabs.includes(currentTab);
   });
@@ -917,6 +1012,7 @@ function fillAuthorFilter() {
 
   allPhotoRecords.forEach((r) => { if (r.owner_code && r.owner_name) names.set(r.owner_code, r.owner_name); });
   allVideoRecords.forEach((r) => { if (r.owner_code && r.owner_name) names.set(r.owner_code, r.owner_name); });
+  allAudioRecords.forEach((r) => { if (r.owner_code && r.owner_name) names.set(r.owner_code, r.owner_name); });
 
   const prev = authorFilterEl.value || "all";
   authorFilterEl.innerHTML = `<option value="all">Все авторы</option>`;
@@ -952,10 +1048,10 @@ function applySort(records, kind) {
       sorted.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
       break;
     case "name_asc":
-      sorted.sort((a, b) => a.name.localeCompare(b.name, "ru"));
+      sorted.sort((a, b) => (a.name||a.title||"").localeCompare((b.name||b.title||""), "ru"));
       break;
     case "name_desc":
-      sorted.sort((a, b) => b.name.localeCompare(a.name, "ru"));
+      sorted.sort((a, b) => (b.name||b.title||"").localeCompare((a.name||a.title||""), "ru"));
       break;
     case "rating_desc":
       sorted.sort((a, b) => {
@@ -1164,6 +1260,83 @@ function formatPublishDate(isoString) {
 
 let allPhotoRecords = [];
 let allVideoRecords = [];
+
+// Единое окно выбора превью из доступных пользователю фото.
+let photoPickerOnSelect = null;
+const photoPickerModal = document.getElementById("photoPickerModal");
+const photoPickerSearch = document.getElementById("photoPickerSearch");
+const photoPickerGrid = document.getElementById("photoPickerGrid");
+const photoPickerStatus = document.getElementById("photoPickerStatus");
+const photoPickerClose = document.getElementById("photoPickerClose");
+const photoPickerCancel = document.getElementById("photoPickerCancel");
+
+function openPhotoPicker(onSelect) {
+  if (typeof onSelect !== "function") return;
+  photoPickerOnSelect = onSelect;
+  if (photoPickerSearch) photoPickerSearch.value = "";
+  renderPhotoPickerItems();
+  photoPickerModal?.classList.add("active");
+  photoPickerSearch?.focus();
+}
+
+function closePhotoPicker() {
+  photoPickerModal?.classList.remove("active");
+  photoPickerOnSelect = null;
+}
+
+function renderPhotoPickerItems() {
+  if (!photoPickerGrid) return;
+  const query = (photoPickerSearch?.value || "").trim().toLocaleLowerCase("ru");
+  const available = (allPhotoRecords || []).filter(record => {
+    if (!record?.storage_path) return false;
+    // Не позволяем выбирать фотографии, закрытые платным просмотром.
+    if (typeof isKurymdykLocked === "function" && isKurymdykLocked("photo", record)) return false;
+    const filename = String(record.storage_path).split("/").pop() || "";
+    const title = String(record.name || nameFromFilename(filename));
+    return !query || `${title} ${filename}`.toLocaleLowerCase("ru").includes(query);
+  });
+  photoPickerGrid.innerHTML = "";
+  if (photoPickerStatus) photoPickerStatus.textContent = available.length
+    ? `Доступно фотографий: ${available.length}`
+    : (query ? "По этому запросу ничего не найдено" : "В галерее пока нет доступных фотографий");
+  if (!available.length) {
+    const empty = document.createElement("div");
+    empty.className = "photo-picker-empty";
+    empty.textContent = query ? "Ничего не найдено. Попробуй другое имя." : "Сначала добавь фотографии в основную галерею.";
+    photoPickerGrid.appendChild(empty);
+    return;
+  }
+  const fragment = document.createDocumentFragment();
+  available.forEach(record => {
+    const filename = String(record.storage_path).split("/").pop() || "";
+    const displayName = String(record.name || nameFromFilename(filename) || "Без названия");
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "photo-picker-item";
+    const image = document.createElement("img");
+    image.src = publicUrlFor(record.storage_path);
+    image.alt = displayName;
+    image.loading = "lazy";
+    const caption = document.createElement("span");
+    caption.className = "photo-picker-item-name";
+    caption.textContent = displayName;
+    caption.title = `${displayName} · ${filename}`;
+    item.append(image, caption);
+    item.addEventListener("click", () => {
+      const chosenUrl = publicUrlFor(record.storage_path);
+      const callback = photoPickerOnSelect;
+      closePhotoPicker();
+      if (callback) callback(chosenUrl, displayName, record);
+    });
+    fragment.appendChild(item);
+  });
+  photoPickerGrid.appendChild(fragment);
+}
+
+if (photoPickerSearch) photoPickerSearch.addEventListener("input", renderPhotoPickerItems);
+if (photoPickerClose) photoPickerClose.addEventListener("click", closePhotoPicker);
+if (photoPickerCancel) photoPickerCancel.addEventListener("click", closePhotoPicker);
+if (photoPickerModal) photoPickerModal.addEventListener("click", e => { if (e.target === photoPickerModal && !isTextSelected()) closePhotoPicker(); });
 let currentPhotoList = [];
 let currentPhotoIndex = -1;
 
@@ -1739,7 +1912,7 @@ function renderVideoGallery(records) {
     card.className = "card" + (locked ? " kurymdyk-locked" : "");
     card.innerHTML = `
       <div class="video-thumb">
-        <img src="${locked ? KURYMDYK_IMAGE : "assets/video-cover.png"}" alt="${displayName}" loading="lazy">
+        <img src="${locked ? KURYMDYK_IMAGE : (record.preview_r2_url || "assets/video-cover.png")}" alt="${displayName}" loading="lazy">
       </div>
       ${locked ? `<div class="kurymdyk-badge" title="Платный просмотр"><img src="assets/giperzadka.png" style="width:14px;height:14px;object-fit:contain;"> ${record.kurymdyk_price}</div>` : ""}
       ${record.followers_only ? `<div class="followers-only-badge" title="Только для подписчиков">🔒</div>` : ""}
@@ -1943,6 +2116,7 @@ uploadVideoBtn.addEventListener("click", () => {
   videoUrl.value = "";
   videoName.value = "";
   videoDescription.value = "";
+  resetVideoPreview();
   selectedSource = "google_drive";
   [...sourcePicker.children].forEach(b => b.classList.toggle("active", b.dataset.source === "google_drive"));
   videoUrlHint.textContent = SOURCE_HINTS.google_drive;
@@ -1974,6 +2148,22 @@ videoConfirm.addEventListener("click", async () => {
 
   videoConfirm.disabled = true;
 
+  let previewUrl = selectedVideoPreviewUrl || null;
+  let previewKey = selectedVideoPreviewKey || null;
+  if (pickedVideoPreviewFile) {
+    try {
+      videoConfirm.textContent = "Загружаю превью...";
+      const previewUpload = await uploadFileXHR(pickedVideoPreviewFile, "video-covers", () => {});
+      previewUrl = previewUpload.url;
+      previewKey = previewUpload.key;
+    } catch (uploadError) {
+      videoConfirm.disabled = false;
+      videoConfirm.textContent = editingVideoRecord ? "Сохранить" : "Добавить в галерею";
+      showToast("Не удалось загрузить превью: " + uploadError.message);
+      return;
+    }
+  }
+
   if (editingVideoRecord) {
     videoConfirm.textContent = "Сохраняю...";
     const { error } = await db
@@ -1983,6 +2173,8 @@ videoConfirm.addEventListener("click", async () => {
         source: selectedSource,
         name: displayName,
         description: description || null,
+        preview_r2_url: previewUrl,
+        preview_r2_key: previewKey,
         followers_only: videoFollowersOnly.checked,
         kurymdyk_price: videoKurymdykEnabled && videoKurymdykEnabled.checked ? Number(videoKurymdykPrice.value) : 0,
       })
@@ -1996,6 +2188,9 @@ videoConfirm.addEventListener("click", async () => {
       return;
     }
 
+    if (editingVideoRecord.preview_r2_key && editingVideoRecord.preview_r2_key !== previewKey) {
+      await db.storage.from(BUCKET_NAME).remove([editingVideoRecord.preview_r2_key]);
+    }
     videoModal.classList.remove("active");
     editingVideoRecord = null;
     showToast("Изменения сохранены ✏️");
@@ -2044,6 +2239,8 @@ videoConfirm.addEventListener("click", async () => {
       source: selectedSource,
       name: displayName,
       description: description || null,
+      preview_r2_url: previewUrl,
+      preview_r2_key: previewKey,
       owner_name: currentIdentity ? currentIdentity.name : null,
       owner_code: currentIdentity ? currentIdentity.code : null,
       category_id: categoryId,
@@ -2080,6 +2277,7 @@ videoEditBtn.addEventListener("click", () => {
   videoUrl.value = currentVideoRecord.video_url;
   videoName.value = currentVideoRecord.name;
   videoDescription.value = currentVideoRecord.description || "";
+  resetVideoPreview(currentVideoRecord.preview_r2_url || null, currentVideoRecord.preview_r2_key || null);
   selectedSource = currentVideoRecord.source;
   [...sourcePicker.children].forEach(b => b.classList.toggle("active", b.dataset.source === selectedSource));
   videoUrlHint.textContent = SOURCE_HINTS[selectedSource] || "";
@@ -2975,7 +3173,10 @@ async function submitComment(kind) {
     return;
   }
 
-  const record = kind === "photo" ? currentPhotoRecord : currentVideoRecord;
+  const record = kind === "photo" ? currentPhotoRecord
+    : kind === "video" ? currentVideoRecord
+    : kind === "audio" ? currentAudioRecord
+    : currentTextRecord;
   if (!record) return;
 
   els.submit.disabled = true;
@@ -3002,10 +3203,18 @@ async function submitComment(kind) {
     return;
   }
 
-  // Если отмечена галочка "подарить гиперзадку" и человек ещё не дарил
-  // её этой карточке раньше — дарим вместе с комментарием (оценка не нужна).
+  // Для аудио можно выбрать несколько участников озвучки и подарить
+  // каждому по одной гиперзадке. Для остальных публикаций логика прежняя.
   const gEls = gigerEls[kind];
-  if (gEls.checkbox.checked && !alreadyGifted[kind]) {
+  if (kind === "audio") {
+    const selectedRecipients = [...document.querySelectorAll("#audioGigerChoices input[data-recipient]:checked")]
+      .map((el) => el.dataset.recipient);
+    if (selectedRecipients.length) {
+      await sendAudioGigers(record, text, insertedComment ? insertedComment.id : null, selectedRecipients);
+    } else {
+      showToast("Комментарий отправлен 💬");
+    }
+  } else if (gEls.checkbox.checked && !alreadyGifted[kind]) {
     await sendGiger(kind, record, text, insertedComment ? insertedComment.id : null);
   } else {
     showToast("Комментарий отправлен 💬");
@@ -3030,6 +3239,7 @@ commentEls.video.replyCancel.addEventListener("click", () => setReplyTarget("vid
 // Если человек отметил "подарить гиперзадку", а потом передумал и снял
 // галочку (ещё до нажатия "Оценить") — проигрываем звук отмены.
 function bindGigerUncheckSound(kind) {
+  if (!gigerEls[kind]?.checkbox) return;
   gigerEls[kind].checkbox.addEventListener("change", (e) => {
     console.log("[giger] чекбокс изменился:", kind, "checked =", e.target.checked);
     if (!e.target.checked) {
@@ -3046,7 +3256,7 @@ bindGigerUncheckSound("video");
 bindGigerUncheckSound("text");
 
 /* ==================================================================
-   ГИПЕРЗАДКИ (валюта: +1 за фото, +2 за видео, можно дарить авторам)
+   ГИПЕРЗАДКИ (фото +1, видео +2, текст/аудио +3; можно дарить авторам)
    ================================================================== */
 async function refreshMyGigerBalance() {
   if (!currentIdentity || !db) {
@@ -3068,14 +3278,19 @@ async function refreshMyGigerBalance() {
 }
 
 async function creditGigersForPublish(kind) {
-  if (!currentIdentity) return;
-  const delta = kind === "video" ? 2 : kind === "text" ? 3 : 1;
-  await db.rpc("giger_add", {
+  if (!currentIdentity) return false;
+  const delta = kind === "video" ? 2 : kind === "text" ? 3 : kind === "audio" ? 3 : 1;
+  const { error } = await db.rpc("giger_add", {
     p_code: currentIdentity.code,
     p_name: currentIdentity.name,
     p_delta: delta,
   });
+  if (error) {
+    console.error("[gigers] не удалось начислить награду за публикацию:", error);
+    return false;
+  }
   refreshMyGigerBalance();
+  return true;
 }
 
 // Уведомляет всех подписчиков автора о новой публикации — событие
@@ -3097,32 +3312,83 @@ async function notifyFollowersOfNewPost(kind, record) {
 
 async function loadGiftState(kind, record) {
   const els = gigerEls[kind];
+  if (!els?.box || !record) return;
+
+  // У аудио получателями могут быть автор книги и авторы одобренных
+  // дополнительных дорожек. Один и тот же человек учитывается один раз.
+  if (kind === "audio") {
+    const host = els.choices || document.getElementById("audioGigerChoices");
+    if (!host) return;
+    host.innerHTML = "";
+    const participants = [];
+    const addParticipant = (code, fallbackName, label) => {
+      if (!code || participants.some((p) => p.code === code)) return;
+      participants.push({ code, name: displayNameFor(code, fallbackName), label });
+    };
+    addParticipant(record.owner_code, record.owner_name, "Автор");
+    (currentAudioVoiceTracks || []).forEach((track) => {
+      addParticipant(track.owner_code, track.owner_name, track.voice_name || "Дополнительная озвучка");
+    });
+
+    if (!participants.length) {
+      host.innerHTML = '<div class="audio-giger-choice-note">У этой аудиозаписи не указан автор — подарки недоступны</div>';
+      return;
+    }
+
+    let giftedCodes = new Set();
+    if (currentIdentity) {
+      const { data, error } = await db.from(GIGER_GIFTS_TABLE)
+        .select("owner_code")
+        .eq("target_type", "audio")
+        .eq("target_id", record.id)
+        .eq("giver_code", currentIdentity.code);
+      if (!error) giftedCodes = new Set((data || []).map((row) => row.owner_code));
+    }
+
+    const canChoose = participants.filter((p) => p.code !== currentIdentity?.code);
+    if (!canChoose.length) {
+      host.innerHTML = '<div class="audio-giger-choice-note">Себе гиперзадку подарить нельзя 🐿️</div>';
+      return;
+    }
+
+    const isMulti = participants.length > 1;
+    host.innerHTML = (isMulti
+      ? '<div class="audio-giger-choice-note">Выбери, кому отправить гиперзадку. Можно отметить нескольких участников.</div>'
+      : '') + canChoose.map((p) => {
+        const gifted = giftedCodes.has(p.code);
+        const caption = isMulti
+          ? `${p.label} — ${p.name}`
+          : "Подарить гиперзадку автору";
+        return `<label class="audio-giger-choice${gifted ? ' disabled' : ''}">
+          <input type="checkbox" data-recipient="${escapeHtml(p.code)}" ${gifted ? 'disabled' : ''}>
+          <img src="assets/giperzadka.png" alt="">
+          <span>${escapeHtml(caption)}${gifted ? ' · уже подарено' : ''}</span>
+        </label>`;
+      }).join("");
+    els.box.classList.remove("hidden", "audio-giger-info");
+    return;
+  }
+
+  if (!els.checkbox) return;
   els.checkbox.checked = false;
+  els.checkbox.disabled = false;
   alreadyGifted[kind] = false;
 
   const noOwner = !record.owner_code;
   const isSelf = currentIdentity && record.owner_code === currentIdentity.code;
-
   if (noOwner || isSelf) {
     els.box.classList.add("hidden");
     return;
   }
-
   if (!currentIdentity) {
     els.box.classList.remove("hidden");
     return;
   }
 
-  const { data, error } = await db
-    .from(GIGER_GIFTS_TABLE)
-    .select("*")
-    .eq("target_type", kind)
-    .eq("target_id", record.id)
-    .eq("giver_code", currentIdentity.code)
-    .maybeSingle();
-
+  const { data, error } = await db.from(GIGER_GIFTS_TABLE).select("id")
+    .eq("target_type", kind).eq("target_id", record.id)
+    .eq("giver_code", currentIdentity.code).maybeSingle();
   if (!error && data) {
-    // Уже подарил раньше — прятать чекбокс совсем, дарить больше нечего
     alreadyGifted[kind] = true;
     els.box.classList.add("hidden");
   } else {
@@ -3130,8 +3396,7 @@ async function loadGiftState(kind, record) {
   }
 }
 
-// Отправляет подарок гиперзадки для карточки (вызывается только из submitRating,
-// вместе с отправкой оценки/комментария — отдельно чекбокс ничего не шлёт).
+// Подарок отправляется вместе с комментарием, когда отмечен соответствующий чекбокс.
 async function sendGiger(kind, record, comment, linkedCommentId) {
   const { data, error } = await db.rpc("giger_gift", {
     p_giver_code: currentIdentity.code,
@@ -3161,10 +3426,44 @@ async function sendGiger(kind, record, comment, linkedCommentId) {
     return false;
   }
 
-  showToast("Оценка сохранена, гиперзадка подарена 🎁");
+  showToast("Гиперзадка подарена 🎁");
   refreshMyGigerBalance();
   logActivity("gift", kind, record);
   return true;
+}
+
+// Для аудиокниг подарок атомарно переводит одну гиперзадку выбранному
+// участнику и сохраняет отдельную запись для каждого получателя.
+async function sendAudioGigers(record, comment, linkedCommentId, recipientCodes) {
+  let sent = 0;
+  let failed = 0;
+  for (const recipientCode of [...new Set(recipientCodes)]) {
+    const participant = [
+      { code: record.owner_code, name: displayNameFor(record.owner_code, record.owner_name) },
+      ...(currentAudioVoiceTracks || []).map((track) => ({
+        code: track.owner_code,
+        name: displayNameFor(track.owner_code, track.owner_name),
+      })),
+    ].find((p) => p.code === recipientCode);
+    if (!participant || participant.code === currentIdentity.code) continue;
+
+    const { data, error } = await db.rpc("audio_giger_gift", {
+      p_audio_id: record.id,
+      p_giver_code: currentIdentity.code,
+      p_giver_name: currentIdentity.name,
+      p_recipient_code: participant.code,
+      p_recipient_name: participant.name,
+      p_comment: comment || null,
+      p_linked_comment_id: linkedCommentId || null,
+    });
+    if (error || data !== true) failed++;
+    else sent++;
+  }
+  if (sent) {
+    showToast(sent === 1 ? "Гиперзадка подарена 🎁" : `Подарено гиперзадок: ${sent} 🎁`);
+    refreshMyGigerBalance();
+  }
+  if (failed) showToast(failed === 1 ? "Один подарок не отправлен: проверь баланс или не дарил ли ты уже этому участнику" : `Не отправлено подарков: ${failed}. Проверь баланс и получателей.`);
 }
 
 /* ==================================================================
@@ -3215,7 +3514,7 @@ videoShareBtn.addEventListener("click", () => {
 
 function parseShareHash() {
   const hash = decodeURIComponent(location.hash.slice(1));
-  const m = hash.match(/^(photo|video|text)-.*--([0-9a-f]{4,32})$/i);
+  const m = hash.match(/^(photo|video|text|audio)-.*--([0-9a-f]{4,32})$/i);
   if (!m) return null;
   return { kind: m[1], idFrag: m[2].toLowerCase() };
 }
@@ -3227,7 +3526,7 @@ function findRecordByIdFrag(list, idFrag) {
 function openSharedFromHash() {
   const shared = parseShareHash();
   if (!shared) return;
-  const list = shared.kind === "photo" ? allPhotoRecords : shared.kind === "video" ? allVideoRecords : allTextRecords;
+  const list = shared.kind === "photo" ? allPhotoRecords : shared.kind === "video" ? allVideoRecords : shared.kind === "audio" ? allAudioRecords : allTextRecords;
   const record = findRecordByIdFrag(list, shared.idFrag);
   if (!record) {
     showToast("Не нашёл запись по этой ссылке 🐿️");
@@ -3237,6 +3536,9 @@ function openSharedFromHash() {
     openLightbox(record, publicUrlFor(record.storage_path));
   } else if (shared.kind === "video") {
     openVideoLightbox(record);
+  } else if (shared.kind === "audio") {
+    switchTab("audio");
+    openAudioLightbox(record, allAudioRecords.indexOf(record));
   } else {
     switchTab("text");
     openTextLightbox(record, allTextRecords.indexOf(record));
@@ -3277,6 +3579,9 @@ deleteConfirm.addEventListener("click", async () => {
     if (error) {
       showToast("Не удалось удалить: " + error.message);
       return;
+    }
+    if (currentVideoRecord.preview_r2_key) {
+      await db.storage.from(BUCKET_NAME).remove([currentVideoRecord.preview_r2_key]);
     }
     deleteModal.classList.remove("active");
     closeVideoLightbox();
@@ -3385,7 +3690,7 @@ async function logActivity(kindEvent, targetType, record, extra) {
       kind: kindEvent,
       target_type: targetType,
       target_id: record.id,
-      target_name: record.name,
+      target_name: record.name || record.title || null,
       owner_code: record.owner_code,
       actor_code: currentIdentity.code,
       actor_name: currentIdentity.name,
@@ -3426,7 +3731,8 @@ async function refreshActivityBadge() {
   let query = db
     .from(ACTIVITY_TABLE)
     .select("id", { count: "exact", head: true })
-    .eq("owner_code", currentIdentity.code);
+    .eq("owner_code", currentIdentity.code)
+    .is("resolved_at", null);
   if (seenAt) query = query.gt("created_at", seenAt);
 
   const { count, error } = await query;
@@ -3446,17 +3752,23 @@ function activityIcon(kind) {
   if (kind === "gift") return "🎁";
   if (kind === "new_post") return "🐿️";
   if (kind === "follow") return "➕";
+  if (kind === "audio_voice_request") return "🎙️";
+  if (kind === "audio_voice_approved") return "✅";
+  if (kind === "audio_voice_rejected") return "❌";
   return "🔔";
 }
 
 function activityText(item) {
-  const who = `<b class="activity-item-actor" data-actor="${item.actor_code}">${item.actor_name || "Кто-то"}</b>`;
-  const what = item.target_name ? `«${item.target_name}»` : "публикацию";
+  const who = `<b class="activity-item-actor" data-actor="${escapeHtml(item.actor_code || "")}">${escapeHtml(item.actor_name || "Кто-то")}</b>`;
+  const what = item.target_name ? `«${escapeHtml(item.target_name)}»` : "публикацию";
   if (item.kind === "view") return `${who} посмотрел(а) твою публикацию ${what}`;
   if (item.kind === "comment") return `${who} написал(а) комментарий под ${what}`;
   if (item.kind === "gift") return `${who} отправил(а) тебе гиперзадку за ${what}`;
   if (item.kind === "new_post") return `${who} выложил(а) новую публикацию ${what}`;
   if (item.kind === "follow") return `${who} подписался(лась) на тебя`;
+  if (item.kind === "audio_voice_request") return `${who} предлагает добавить озвучку «${escapeHtml(item.extra || "Дополнительная озвучка")}» к аудио ${what}`;
+  if (item.kind === "audio_voice_approved") return `${who} одобрил(а) твою озвучку «${escapeHtml(item.extra || "Дополнительная озвучка")}» для ${what}`;
+  if (item.kind === "audio_voice_rejected") return `${who} отклонил(а) добавление озвучки «${escapeHtml(item.extra || "Дополнительная озвучка")}» к ${what}`;
   return `${who}: событие по ${what}`;
 }
 
@@ -3466,10 +3778,10 @@ async function loadActivityFeed() {
     return;
   }
 
-  const { data, error } = await db
-    .from(ACTIVITY_TABLE)
+  const { data, error } = await db.from(ACTIVITY_TABLE)
     .select("*")
     .eq("owner_code", currentIdentity.code)
+    .is("resolved_at", null)
     .order("created_at", { ascending: false })
     .limit(50);
 
@@ -3478,28 +3790,32 @@ async function loadActivityFeed() {
     return;
   }
 
-  const items = data || [];
+  // Заявки на озвучку всегда закрепляем выше обычных уведомлений.
+  const items = (data || []).sort((a, b) => {
+    const priority = (item) => item.kind === "audio_voice_request" ? 0 : 1;
+    return priority(a) - priority(b) || new Date(b.created_at) - new Date(a.created_at);
+  });
   if (!items.length) {
     activityList.innerHTML = `<div class="activity-empty">Пока тихо 🐿️</div>`;
     return;
   }
 
-  activityList.innerHTML = items
-    .map(
-      (item, idx) => `
-        <div class="activity-item" data-idx="${idx}">
-          <div class="activity-item-icon">${activityIcon(item.kind)}</div>
-          <div class="activity-item-body">
-            <div class="activity-item-text">${activityText(item)}</div>
-            <div class="activity-item-time">${timeAgo(item.created_at)}</div>
-          </div>
+  activityList.innerHTML = items.map((item, idx) => {
+    const isVoiceRequest = item.kind === "audio_voice_request";
+    return `
+      <div class="activity-item${isVoiceRequest ? " audio-request-item" : ""}" data-idx="${idx}">
+        <div class="activity-item-icon">${activityIcon(item.kind)}</div>
+        <div class="activity-item-body">
+          <div class="activity-item-text">${activityText(item)}</div>
+          <div class="activity-item-time">${timeAgo(item.created_at)}</div>
+          ${isVoiceRequest ? `<div class="audio-request-actions">
+            <button type="button" class="audio-request-approve" data-voice-review="approve">Принять озвучку</button>
+            <button type="button" class="audio-request-reject" data-voice-review="reject">Отказать</button>
+          </div>` : ""}
         </div>
-      `
-    )
-    .join("");
+      </div>`;
+  }).join("");
 
-  // Клик по никнейму автора события — переход в его профиль, отдельно
-  // от клика по остальной части элемента (который ведёт к публикации).
   [...activityList.querySelectorAll(".activity-item-actor")].forEach((el) => {
     el.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -3508,20 +3824,44 @@ async function loadActivityFeed() {
     });
   });
 
+  [...activityList.querySelectorAll("[data-voice-review]")].forEach((button) => {
+    button.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const item = items[Number(button.closest(".activity-item")?.dataset.idx)];
+      if (item) await resolveAudioVoiceRequest(item, button.dataset.voiceReview === "approve");
+    });
+  });
+
   [...activityList.querySelectorAll(".activity-item")].forEach((el) => {
     el.addEventListener("click", async () => {
       const item = items[Number(el.dataset.idx)];
-      activityPanel.classList.add("hidden");
       if (item.kind === "follow") {
+        activityPanel.classList.add("hidden");
         openProfile(item.actor_code);
         return;
       }
+      activityPanel.classList.add("hidden");
       await goToPublication(item.target_type, item.target_id);
     });
   });
 }
 
 async function goToPublication(kind, targetId) {
+  if (kind === "audio") {
+    let record = allAudioRecords.find((r) => r.id === targetId);
+    if (!record) {
+      switchTab("audio");
+      await loadAudio();
+      record = allAudioRecords.find((r) => r.id === targetId);
+    }
+    if (!record) {
+      showToast("Эта аудиозапись больше не найдена 🐿️");
+      return;
+    }
+    switchTab("audio");
+    openAudioLightbox(record, currentAudioList.indexOf(record));
+    return;
+  }
   if (kind === "photo") {
     let record = allPhotoRecords.find((r) => r.id === targetId);
     if (!record) {
@@ -3552,6 +3892,36 @@ async function goToPublication(kind, targetId) {
   }
 }
 
+async function resolveAudioVoiceRequest(activityItem, approve) {
+  if (!currentIdentity || !activityItem.related_id) {
+    showToast("Не удалось определить заявку на озвучку");
+    return;
+  }
+  const { data, error } = await db.rpc("review_audio_voice_track", {
+    p_track_id: activityItem.related_id,
+    p_owner_code: currentIdentity.code,
+    p_approve: approve,
+    p_owner_name: currentIdentity.name,
+  });
+  if (error) {
+    showToast("Не удалось обработать заявку: " + error.message);
+    return;
+  }
+  if (!data?.ok) {
+    showToast("Эта заявка уже обработана или у тебя нет прав");
+    await loadActivityFeed();
+    await refreshActivityBadge();
+    return;
+  }
+  if (!approve && data.storage_key) { try { await deleteAudioR2Object(data.storage_key); } catch (cleanupError) { console.warn("Не удалось удалить R2-дорожку", cleanupError); } }
+  showToast(approve ? "Озвучка добавлена к аудиокниге ✅" : "Заявка отклонена");
+  await loadActivityFeed();
+  await refreshActivityBadge();
+  if (currentAudioRecord?.id === activityItem.target_id) {
+    await loadAudioVoiceTracks(currentAudioRecord);
+    await loadGiftState("audio", currentAudioRecord);
+  }
+}
 activityBellBtn.addEventListener("click", async () => {
   const willOpen = activityPanel.classList.contains("hidden");
   activityPanel.classList.toggle("hidden");
@@ -3771,7 +4141,7 @@ function renderProfileGallery(kind) {
       });
     } else {
       card.innerHTML = `
-        <div class="video-thumb"><img src="${locked ? KURYMDYK_IMAGE : "assets/video-cover.png"}" alt="${displayName}" loading="lazy"></div>
+        <div class="video-thumb"><img src="${locked ? KURYMDYK_IMAGE : (record.preview_r2_url || "assets/video-cover.png")}" alt="${displayName}" loading="lazy"></div>
         ${record.pinned && !locked ? `<div class="pinned-badge" title="Закреплено">📌</div>` : ""}
         ${locked ? `<div class="kurymdyk-badge" title="Платный просмотр"><img src="assets/giperzadka.png" style="width:14px;height:14px;object-fit:contain;"> ${record.kurymdyk_price}</div>` : ""}
         ${record.followers_only && !locked ? `<div class="followers-only-badge" title="Только для подписчиков">🔒</div>` : ""}
@@ -4380,7 +4750,7 @@ function subscribeRatingsRealtime() {
         const row = payload.new || payload.old;
         if (!row) return;
         const kind = row.target_type;
-        if ((kind === "photo" || kind === "video") && currentRatingTarget[kind] === row.target_id) {
+        if ((kind === "photo" || kind === "video" || kind === "audio") && currentRatingTarget[kind] === row.target_id) {
           loadRatings(kind, row.target_id);
         }
         // Общий рейтинг (звёздочки на карточках) тоже пересчитываем в фоне.
@@ -4412,7 +4782,7 @@ function subscribeCommentsRealtime() {
         const row = payload.new || payload.old;
         if (!row) return;
         const kind = row.target_type;
-        if ((kind === "photo" || kind === "video") && currentRatingTarget[kind] === row.target_id) {
+        if ((kind === "photo" || kind === "video" || kind === "audio") && currentRatingTarget[kind] === row.target_id) {
           loadComments(kind, row.target_id);
         }
       }
@@ -5449,6 +5819,7 @@ async function deleteGameVersion(vid) {
 /* МОДАЛ: ДОБАВЛЕНИЕ ИГРЫ                                              */
 /* ------------------------------------------------------------------ */
 let pickedGameIcon = null;
+let pickedGameIconGalleryUrl = null;
 
 const gameModal       = document.getElementById("gameModal");
 const gameModalCancel = document.getElementById("gameModalCancel");
@@ -5456,14 +5827,16 @@ const gameModalSave   = document.getElementById("gameModalSave");
 const gameIconFileInput = document.getElementById("gameIconFileInput");
 const gameIconPreview   = document.getElementById("gameIconPreview");
 const gameIconPickBtn   = document.getElementById("gameIconPickBtn");
+const gameIconGalleryBtn = document.getElementById("gameIconGalleryBtn");
 
 if (uploadGameBtn) {
   uploadGameBtn.addEventListener("click", () => {
     ["gameTitle","gameDesc","gameAuthor","gameFirstVerUrl","gameFirstVerNote","gameTags"]
       .forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
     pickedGameIcon = null;
+    pickedGameIconGalleryUrl = null;
     if (gameIconPreview) { gameIconPreview.src = ""; gameIconPreview.classList.add("hidden"); }
-    if (gameIconPickBtn) gameIconPickBtn.textContent = "📁 Выбрать иконку";
+    if (gameIconPickBtn) gameIconPickBtn.textContent = "📁 Из файлов";
     gameModal.classList.add("active");
   });
 }
@@ -5475,11 +5848,19 @@ if (gameIconFileInput) {
     const file = gameIconFileInput.files[0];
     if (!file) return;
     pickedGameIcon = file;
+    pickedGameIconGalleryUrl = null;
     if (gameIconPreview) { gameIconPreview.src = URL.createObjectURL(file); gameIconPreview.classList.remove("hidden"); }
     if (gameIconPickBtn) gameIconPickBtn.textContent = "✅ " + file.name;
     gameIconFileInput.value = "";
   });
 }
+
+if (gameIconGalleryBtn) gameIconGalleryBtn.addEventListener("click", () => openPhotoPicker(url => {
+  pickedGameIcon = null;
+  pickedGameIconGalleryUrl = url;
+  if (gameIconPreview) { gameIconPreview.src = url; gameIconPreview.classList.remove("hidden"); }
+  if (gameIconPickBtn) gameIconPickBtn.textContent = "📁 Из файлов";
+}));
 
 if (gameModalCancel) gameModalCancel.addEventListener("click", () => gameModal.classList.remove("active"));
 if (gameModal) gameModal.addEventListener("click", e => { if (e.target === gameModal && !isTextSelected()) gameModal.classList.remove("active"); });
@@ -5495,7 +5876,7 @@ if (gameModalSave) {
     gameModalSave.textContent = "Сохраняю...";
 
     // загрузка иконки
-    let iconUrl = null;
+    let iconUrl = pickedGameIconGalleryUrl || null;
     if (pickedGameIcon) {
       const ext  = pickedGameIcon.name.split(".").pop();
       const path = `game-icons/${Date.now()}.${ext}`;
@@ -5605,6 +5986,7 @@ if (addVerModalSave) {
 let editGameId = null;
 let editGameCurrentIconUrl = null;
 let pickedEditGameIcon = null;
+let pickedEditGameIconGalleryUrl = null;
 
 const editGameModal       = document.getElementById("editGameModal");
 const editGameModalCancel = document.getElementById("editGameModalCancel");
@@ -5612,6 +5994,7 @@ const editGameModalSave   = document.getElementById("editGameModalSave");
 const editGameIconFileInput = document.getElementById("editGameIconFileInput");
 const editGameIconPreview   = document.getElementById("editGameIconPreview");
 const editGameIconPickBtn   = document.getElementById("editGameIconPickBtn");
+const editGameIconGalleryBtn = document.getElementById("editGameIconGalleryBtn");
 
 function openEditGameModal(game) {
   const codeMatch = currentIdentity && game.owner_code && game.owner_code === currentIdentity.code;
@@ -5626,6 +6009,7 @@ function openEditGameModal(game) {
   editGameId = game.id;
   editGameCurrentIconUrl = game.icon_url || null;
   pickedEditGameIcon = null;
+  pickedEditGameIconGalleryUrl = null;
 
   document.getElementById("editGameTitle").value = game.title || "";
   document.getElementById("editGameDesc").value = game.description || "";
@@ -5641,7 +6025,7 @@ function openEditGameModal(game) {
       editGameIconPreview.classList.add("hidden");
     }
   }
-  if (editGameIconPickBtn) editGameIconPickBtn.textContent = "📁 Сменить иконку";
+  if (editGameIconPickBtn) editGameIconPickBtn.textContent = "📁 Из файлов";
   if (editGameModal) editGameModal.classList.add("active");
 }
 
@@ -5652,11 +6036,19 @@ if (editGameIconFileInput) {
     const file = editGameIconFileInput.files[0];
     if (!file) return;
     pickedEditGameIcon = file;
+    pickedEditGameIconGalleryUrl = null;
     if (editGameIconPreview) { editGameIconPreview.src = URL.createObjectURL(file); editGameIconPreview.classList.remove("hidden"); }
     if (editGameIconPickBtn) editGameIconPickBtn.textContent = "✅ " + file.name;
     editGameIconFileInput.value = "";
   });
 }
+
+if (editGameIconGalleryBtn) editGameIconGalleryBtn.addEventListener("click", () => openPhotoPicker(url => {
+  pickedEditGameIcon = null;
+  pickedEditGameIconGalleryUrl = url;
+  if (editGameIconPreview) { editGameIconPreview.src = url; editGameIconPreview.classList.remove("hidden"); }
+  if (editGameIconPickBtn) editGameIconPickBtn.textContent = "📁 Из файлов";
+}));
 
 if (editGameModalCancel) editGameModalCancel.addEventListener("click", () => editGameModal.classList.remove("active"));
 if (editGameModal) editGameModal.addEventListener("click", e => { if (e.target === editGameModal && !isTextSelected()) editGameModal.classList.remove("active"); });
@@ -5670,7 +6062,7 @@ if (editGameModalSave) {
     editGameModalSave.textContent = "Сохраняю...";
 
     // загрузка новой иконки если выбрана
-    let iconUrl = editGameCurrentIconUrl;
+    let iconUrl = pickedEditGameIconGalleryUrl || editGameCurrentIconUrl;
     if (pickedEditGameIcon) {
       const ext = pickedEditGameIcon.name.split(".").pop();
       const path = `game-icons/${Date.now()}.${ext}`;
@@ -5819,5 +6211,1205 @@ if (restoreCodeBtn) {
     unlockedKurymdykSet = null;
     unlockedKurymdykForCode = null;
     await Promise.all([loadPhotos(), loadVideos()]);
+  });
+}
+/* ════════════════════════════════════════════════════════════
+   АУДИО РАЗДЕЛ
+   ════════════════════════════════════════════════════════════ */
+
+let allAudioRecords  = [];
+let currentAudioList = [];
+let currentAudioRecord = null;
+let currentAudioIndex  = 0;
+let currentAudioVoiceTracks = [];
+let currentAudioVoiceId = "original";
+let pickedAudioVoiceFile = null;
+
+/* ── DOM refs ── */
+
+const audioLightbox    = document.getElementById("audioLightbox");
+const audioLbClose     = document.getElementById("audioLightboxClose");
+const audioLbTitle     = document.getElementById("audioLbTitle");
+const audioLbAuthor    = document.getElementById("audioLbAuthor");
+const audioLbDate      = document.getElementById("audioLbDate");
+const audioLbDesc      = document.getElementById("audioLbDesc");
+const audioLbCover     = document.getElementById("audioLbCover");
+const audioLbCoverFb   = document.getElementById("audioLbCoverFallback");
+const audioLbPrevBtn   = document.getElementById("audioLbPrevBtn");
+const audioLbNextBtn   = document.getElementById("audioLbNextBtn");
+const audioLbTools     = document.getElementById("audioLbTools");
+const audioLbEditBtn   = document.getElementById("audioLbEditBtn");
+const audioLbDeleteBtn = document.getElementById("audioLbDeleteBtn");
+const audioWaveCanvas  = document.getElementById("audioWaveCanvas");
+const audioWaveProgress= document.getElementById("audioWaveProgress");
+const audioWaveCursor  = document.getElementById("audioWaveCursor");
+const audioWaveContainer=document.getElementById("audioWaveContainer");
+const audioPlayBtn     = document.getElementById("audioPlayBtn");
+const audioPlayIcon    = document.getElementById("audioPlayIcon");
+const audioPauseIcon   = document.getElementById("audioPauseIcon");
+const audioRewind10    = document.getElementById("audioRewind10");
+const audioForward10   = document.getElementById("audioForward10");
+const audioCurTime     = document.getElementById("audioCurTime");
+const audioDurTime     = document.getElementById("audioDurTime");
+const audioVolume      = document.getElementById("audioVolume");
+const audioSpeedBtn    = document.getElementById("audioSpeedBtn");
+const audioLoopBtn     = document.getElementById("audioLoopBtn");
+const audioPipBtn      = document.getElementById("audioPipBtn");
+let audioLoopEnabled = false;
+const audioModal       = document.getElementById("audioModal");
+const audioFileInput   = document.getElementById("audioFileInput");
+const audioFileDrop    = document.getElementById("audioFileDrop");
+const audioFilePickText= document.getElementById("audioFilePickText");
+const audioCoverFileInput=document.getElementById("audioCoverFileInput");
+const audioCoverPickBtn= document.getElementById("audioCoverPickBtn");
+const audioCoverGalleryBtn = document.getElementById("audioCoverGalleryBtn");
+const audioCoverPreview= document.getElementById("audioCoverPreview");
+let selectedAudioCoverGalleryUrl = null;
+const audioTitleInput  = document.getElementById("audioTitle");
+const audioDescInput   = document.getElementById("audioDesc");
+const audioModalCancel = document.getElementById("audioModalCancel");
+const audioModalSave   = document.getElementById("audioModalSave");
+const audioUploadProgress=document.getElementById("audioUploadProgress");
+const audioProgressFill= document.getElementById("audioProgressFill");
+const audioProgressLabel=document.getElementById("audioProgressLabel");
+const editAudioModal   = document.getElementById("editAudioModal");
+const editAudioTitle   = document.getElementById("editAudioTitle");
+const editAudioDesc    = document.getElementById("editAudioDesc");
+const editAudioCancel  = document.getElementById("editAudioCancel");
+const editAudioSave    = document.getElementById("editAudioSave");
+const editAudioCoverPreview = document.getElementById("editAudioCoverPreview");
+const editAudioCoverFileBtn = document.getElementById("editAudioCoverFileBtn");
+const editAudioCoverGalleryBtn = document.getElementById("editAudioCoverGalleryBtn");
+const editAudioCoverFileInput = document.getElementById("editAudioCoverFileInput");
+let pickedEditAudioCoverFile = null;
+let selectedEditAudioCoverUrl = null;
+let editAudioCoverChanged = false;
+if (editAudioCoverFileBtn) editAudioCoverFileBtn.addEventListener("click", () => editAudioCoverFileInput?.click());
+if (editAudioCoverFileInput) editAudioCoverFileInput.addEventListener("change", () => {
+  const file = editAudioCoverFileInput.files?.[0];
+  editAudioCoverFileInput.value = "";
+  if (!file) return;
+  if (!file.type.startsWith("image/")) { showToast("Выбери файл изображения"); return; }
+  pickedEditAudioCoverFile = file;
+  selectedEditAudioCoverUrl = null;
+  editAudioCoverChanged = true;
+  if (editAudioCoverPreview) { editAudioCoverPreview.src = URL.createObjectURL(file); editAudioCoverPreview.classList.remove("hidden"); }
+});
+if (editAudioCoverGalleryBtn) editAudioCoverGalleryBtn.addEventListener("click", () => openPhotoPicker(url => {
+  pickedEditAudioCoverFile = null;
+  selectedEditAudioCoverUrl = url;
+  editAudioCoverChanged = true;
+  if (editAudioCoverPreview) { editAudioCoverPreview.src = url; editAudioCoverPreview.classList.remove("hidden"); }
+}));
+const audioVoiceList = document.getElementById("audioVoiceList");
+const audioAddVoiceBtn = document.getElementById("audioAddVoiceBtn");
+const audioVoiceModal = document.getElementById("audioVoiceModal");
+const audioVoiceFileDrop = document.getElementById("audioVoiceFileDrop");
+const audioVoiceFileInput = document.getElementById("audioVoiceFileInput");
+const audioVoiceFilePickText = document.getElementById("audioVoiceFilePickText");
+const audioVoiceNameInput = document.getElementById("audioVoiceName");
+const audioVoiceUploadProgress = document.getElementById("audioVoiceUploadProgress");
+const audioVoiceProgressFill = document.getElementById("audioVoiceProgressFill");
+const audioVoiceProgressLabel = document.getElementById("audioVoiceProgressLabel");
+const audioVoiceCancel = document.getElementById("audioVoiceCancel");
+const audioVoiceSave = document.getElementById("audioVoiceSave");
+
+/* extend shared objects */
+ratingEls.audio = {
+  summaryImg: document.getElementById("audioRatingSummaryImg"),
+  score:      document.getElementById("audioRatingScore"),
+  label:      document.getElementById("audioRatingLabel"),
+  picker:     document.getElementById("audioRatingPicker"),
+  submit:     document.getElementById("audioRatingSubmit"),
+};
+commentEls.audio = {
+  list:          document.getElementById("audioCommentList"),
+  input:         document.getElementById("audioCommentInput"),
+  submit:        document.getElementById("audioCommentSubmit"),
+  replyHint:     document.getElementById("audioReplyHint"),
+  replyHintName: document.getElementById("audioReplyHintName"),
+  replyCancel:   document.getElementById("audioReplyCancelBtn"),
+};
+gigerEls.audio = {
+  box:      document.getElementById("audioGigerBox"),
+  checkbox: null,
+  choices:  document.getElementById("audioGigerChoices"),
+};
+buildRatingPicker("audio");
+bindGigerUncheckSound("audio");
+
+/* ── Загрузка из Supabase ── */
+async function loadAudio() {
+  statusEl.textContent = "Загружаю аудио...";
+  const { data, error } = await db
+    .from(AUDIO_TABLE)
+    .select("id, title, description, r2_key, r2_url, duration_sec, cover_r2_key, cover_r2_url, owner_code, owner_name, followers_only, category_id, created_at")
+    .order("created_at", { ascending: false });
+  if (error) {
+    statusEl.textContent = "Ошибка загрузки аудио: " + error.message +
+      (error.message.includes("does not exist") ? " (выполни migration_add_audio.sql)" : "");
+    return;
+  }
+  if (!mySubscriptions) await loadMySubscriptions();
+  allAudioRecords = (data || []).filter(canSeeRecord);
+  fillAuthorFilter();
+  await preloadProfilesFor(allAudioRecords);
+  applyAudioSearch();
+}
+
+function applyAudioSearch() {
+  const query = searchInput.value.trim().toLowerCase();
+  const approvedCategoryIds = new Set(allCategories.map(c => c.id));
+  let base = allAudioRecords.filter(r => !r.category_id || approvedCategoryIds.has(r.category_id));
+  if (currentCategoryFilter !== "all") base = base.filter(r => r.category_id === currentCategoryFilter);
+  if (currentAuthorFilter !== "all") base = base.filter(r => r.owner_code === currentAuthorFilter);
+  if (query) base = base.filter(r =>
+    (r.title||"").toLowerCase().includes(query) ||
+    displayNameFor(r.owner_code, r.owner_name).toLowerCase().includes(query)
+  );
+  base = applySort(base, "audio");
+  renderAudioGallery(base);
+}
+
+function formatDuration(sec) {
+  const m = Math.floor(sec / 60), s = Math.floor(sec % 60);
+  return `${m}:${s.toString().padStart(2,"0")}`;
+}
+
+function renderAudioGallery(records) {
+  currentAudioList = records;
+  galleryAudio.innerHTML = "";
+  if (!records.length) {
+    statusEl.textContent = "Аудио: 0 · Пока нет аудио треков — добавь первый! 🎵";
+    return;
+  }
+  statusEl.textContent = `Аудио: ${records.length}`;
+  records.forEach((record, idx) => {
+    const card = document.createElement("div");
+    card.className = "audio-card";
+    const hasCover = !!record.cover_r2_url;
+    const dur = record.duration_sec ? formatDuration(record.duration_sec) : "";
+    const authorName = displayNameFor(record.owner_code, record.owner_name);
+    card.innerHTML = `
+      <div class="audio-card-cover">
+        ${hasCover ? `<img src="${escapeHtml(record.cover_r2_url)}" alt="" loading="lazy">` : ""}
+        <div class="audio-card-cover-fallback" ${hasCover ? 'style="display:none"' : ""}>🎵</div>
+        <div class="audio-card-play-overlay">
+          <div class="audio-card-play-icon">
+            <svg viewBox="0 0 24 24" width="20" height="20"><path fill="#a0522d" d="M8 5v14l11-7z"/></svg>
+          </div>
+        </div>
+      </div>
+      <div class="audio-card-body">
+        <div class="audio-card-meta">
+          <div class="audio-card-title">${escapeHtml(record.title||"Без названия")}</div>
+          <div class="audio-card-meta-right">
+            <span class="audio-card-author owner-tag-link" data-owner="${record.owner_code||""}">${escapeHtml(authorName)}</span>
+            ${dur ? `<span class="audio-card-duration">${dur}</span>` : ""}
+          </div>
+        </div>
+        <div class="audio-card-date">${formatPublishDate(record.created_at)}</div>
+      </div>`;
+    card.addEventListener("click", () => {
+      if (typeof stopPlaylistPlayback === "function") stopPlaylistPlayback();
+      openAudioLightbox(record, idx);
+    });
+    const ownerTag = card.querySelector(".owner-tag-link");
+    if (ownerTag) ownerTag.addEventListener("click", (e) => { e.stopPropagation(); openProfile(record.owner_code); });
+    galleryAudio.appendChild(card);
+  });
+}
+
+/* ════ Плеер ════ */
+let audioEl = null;
+let waveformData = null;
+let waveAnimFrame = null;
+const SPEED_STEPS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+let currentSpeedIdx = 2;
+
+function setPlayState(playing) {
+  if (audioPlayIcon && audioPauseIcon) {
+    audioPlayIcon.style.display  = playing ? "none" : "";
+    audioPauseIcon.style.display = playing ? "" : "none";
+  }
+  updateAudioPipState();
+}
+
+function stopAudio() {
+  if (audioEl) { audioEl.pause(); audioEl.src = ""; }
+  if (waveAnimFrame) { cancelAnimationFrame(waveAnimFrame); waveAnimFrame = null; }
+  waveformData = null;
+  if (audioWaveCanvas) {
+    const ctx = audioWaveCanvas.getContext("2d");
+    if (ctx) ctx.clearRect(0, 0, audioWaveCanvas.width, audioWaveCanvas.height);
+  }
+  if (audioWaveProgress) audioWaveProgress.style.width = "0%";
+  if (audioWaveCursor)   audioWaveCursor.style.left   = "0%";
+  if (audioCurTime) audioCurTime.textContent = "0:00";
+  if (audioDurTime) audioDurTime.textContent = "0:00";
+  setPlayState(false);
+}
+
+async function decodeWaveform(url) {
+  try {
+    const res = await fetch(url, { headers: { Range: "bytes=0-2097151" } });
+    const buf = await res.arrayBuffer();
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const decoded  = await audioCtx.decodeAudioData(buf);
+    const ch = decoded.getChannelData(0);
+    const BINS = 180, step = Math.floor(ch.length / BINS);
+    const data = new Float32Array(BINS);
+    for (let i = 0; i < BINS; i++) {
+      let max = 0;
+      for (let j = 0; j < step; j++) { const v = Math.abs(ch[i*step+j]||0); if (v>max) max=v; }
+      data[i] = max;
+    }
+    const peak = Math.max(...data) || 1;
+    for (let i = 0; i < BINS; i++) data[i] = data[i]/peak;
+    audioCtx.close();
+    return data;
+  } catch {
+    const data = new Float32Array(180);
+    for (let i = 0; i < 180; i++) data[i] = 0.2 + Math.random()*0.8;
+    return data;
+  }
+}
+
+function drawWaveform(progress) {
+  if (!audioWaveCanvas || !waveformData) return;
+  const W = audioWaveCanvas.offsetWidth, H = audioWaveCanvas.offsetHeight;
+  if (!W || !H) return;
+  const dpr = devicePixelRatio || 1;
+  audioWaveCanvas.width  = W * dpr;
+  audioWaveCanvas.height = H * dpr;
+  const ctx = audioWaveCanvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+  const BINS = waveformData.length;
+  const barW = Math.max(2, W/BINS - 1.5);
+  const gap  = (W - barW*BINS) / BINS;
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+  const played   = isDark ? "#c47232" : "#a0522d";
+  const unplayed = isDark ? "rgba(255,255,255,0.18)" : "rgba(160,82,45,0.25)";
+  const radius = Math.min(barW/2, 3);
+  for (let i = 0; i < BINS; i++) {
+    const x = i*(barW+gap), amp = waveformData[i];
+    const barH = Math.max(3, amp*H*0.85), y = (H-barH)/2;
+    ctx.fillStyle = i/BINS <= progress ? played : unplayed;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, barW, barH, radius);
+    else ctx.rect(x, y, barW, barH);
+    ctx.fill();
+  }
+}
+
+function animateWave() {
+  if (!audioEl) return;
+  const pct = audioEl.duration ? audioEl.currentTime/audioEl.duration : 0;
+  drawWaveform(pct);
+  if (audioWaveProgress) audioWaveProgress.style.width = (pct*100).toFixed(2)+"%";
+  if (audioWaveCursor)   audioWaveCursor.style.left   = (pct*100).toFixed(2)+"%";
+  if (audioCurTime) audioCurTime.textContent = formatDuration(audioEl.currentTime);
+  waveAnimFrame = requestAnimationFrame(animateWave);
+}
+
+async function loadAndPlayAudio(record) {
+  stopAudio();
+  if (!record.r2_url) return;
+  if (!audioEl) {
+    audioEl = new Audio();
+    audioEl.crossOrigin = "anonymous";
+    audioEl.addEventListener("timeupdate", updateAudioPipState);
+    audioEl.addEventListener("loadedmetadata", updateAudioPipState);
+    audioEl.addEventListener("play", updateAudioPipState);
+    audioEl.addEventListener("pause", updateAudioPipState);
+  }
+  audioEl.src = record.r2_url;
+  audioEl.loop = audioLoopEnabled;
+  audioEl.playbackRate = SPEED_STEPS[currentSpeedIdx];
+  if (audioVolume) audioEl.volume = parseFloat(audioVolume.value);
+  waveformData = new Float32Array(180).fill(0.3);
+  drawWaveform(0);
+  decodeWaveform(record.r2_url).then(data => { waveformData = data; drawWaveform(audioEl?.duration ? audioEl.currentTime / audioEl.duration : 0); drawAudioPipWaveform(); });
+  audioEl.onloadedmetadata = () => {
+    if (audioDurTime) audioDurTime.textContent = formatDuration(audioEl.duration);
+    if (!record.duration_sec && audioEl.duration && !record.isVoiceTrack) {
+      db.from(AUDIO_TABLE).update({ duration_sec: Math.round(audioEl.duration) }).eq("id", record.id).then(() => {
+        record.duration_sec = Math.round(audioEl.duration);
+      });
+    }
+  };
+  audioEl.onended = () => {
+    if (typeof handlePlaylistTrackEnded === "function" && handlePlaylistTrackEnded()) return;
+    setPlayState(false);
+    if (waveAnimFrame) { cancelAnimationFrame(waveAnimFrame); waveAnimFrame = null; }
+  };
+  try {
+    await audioEl.play();
+    setPlayState(true);
+    animateWave();
+  } catch { setPlayState(false); }
+}
+
+/* Плавающий мини-плеер (Document Picture-in-Picture, Chrome/Edge) */
+let audioPipWindow = null;
+function updateAudioPipState() {
+  if (!audioPipWindow || audioPipWindow.closed || !audioEl) return;
+  const d = audioPipWindow.document;
+  const play = d.getElementById("pipPlay");
+  drawAudioPipWaveform();
+  const cur = d.getElementById("pipCurrent");
+  const dur = d.getElementById("pipDuration");
+  const title = d.getElementById("pipTitle");
+  const cover = d.getElementById("pipCover");
+  if (play) play.innerHTML = audioEl.paused ? '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
+  if (cur) cur.textContent = formatDuration(audioEl.currentTime || 0);
+  if (dur) dur.textContent = formatDuration(audioEl.duration || 0);
+  const loop = d.getElementById("pipLoop");
+  const speed = d.getElementById("pipSpeed");
+  const volume = d.getElementById("pipVolume");
+  if (loop) loop.classList.toggle("active", audioLoopEnabled);
+  if (speed) speed.textContent = (SPEED_STEPS[currentSpeedIdx] || 1) + "×";
+  if (volume) volume.value = String(audioEl.volume);
+  if (title) {
+    const voice = selectedAudioVoiceTrack();
+    title.textContent = currentAudioRecord?.title
+      ? `${currentAudioRecord.title}${voice ? " · " + (voice.voice_name || "Доп. озвучка") : ""}`
+      : "Аудио";
+  }
+  if (cover) {
+    const url = currentAudioRecord?.cover_r2_url;
+    if (url) { cover.src = url; cover.style.display = "block"; }
+    else { cover.removeAttribute("src"); cover.style.display = "none"; }
+  }
+  if (typeof updatePlaylistPipControls === "function") updatePlaylistPipControls();
+}
+
+// Рисует в мини-плеере ту же waveformData, что и в основном аудиоплеере.
+function drawAudioPipWaveform() {
+  if (!audioPipWindow || audioPipWindow.closed || !audioEl) return;
+  const canvas = audioPipWindow.document.getElementById("pipWaveCanvas");
+  if (!canvas) return;
+  const W = canvas.clientWidth, H = canvas.clientHeight;
+  if (!W || !H) return;
+  const dpr = audioPipWindow.devicePixelRatio || 1;
+  canvas.width = Math.round(W * dpr);
+  canvas.height = Math.round(H * dpr);
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  const data = waveformData || new Float32Array(180).fill(0.3);
+  const bins = data.length;
+  const barW = Math.max(1.5, W / bins - 1.2);
+  const gap = (W - barW * bins) / bins;
+  const progress = audioEl.duration ? audioEl.currentTime / audioEl.duration : 0;
+  for (let i = 0; i < bins; i++) {
+    const x = i * (barW + gap);
+    const amp = data[i] || 0.15;
+    const barH = Math.max(3, amp * H * 0.88);
+    const y = (H - barH) / 2;
+    ctx.fillStyle = i / bins <= progress ? "#c47b45" : "rgba(255,255,255,.23)";
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, barW, barH, Math.min(barW / 2, 3));
+    else ctx.rect(x, y, barW, barH);
+    ctx.fill();
+  }
+  const cursorX = Math.max(0, Math.min(W - 1, progress * W));
+  ctx.fillStyle = "#f0a36b";
+  ctx.fillRect(cursorX, 0, 2, H);
+}
+
+async function openAudioPip() {
+  if (!audioEl || !currentAudioRecord) {
+    if (typeof showToast === "function") showToast("Сначала выбери аудио", "info");
+    return;
+  }
+  if (!("documentPictureInPicture" in window)) {
+    if (typeof showToast === "function") showToast("Мини-плеер поверх окон поддерживается в Chrome и Edge. Обнови браузер до актуальной версии.", "error");
+    return;
+  }
+  try {
+    if (audioPipWindow && !audioPipWindow.closed) {
+      audioPipWindow.focus();
+      return;
+    }
+    audioPipWindow = await window.documentPictureInPicture.requestWindow({ width: 550, height: 230 });
+    const d = audioPipWindow.document;
+    d.documentElement.style.cssText = "height:100%;";
+    d.body.style.cssText = "margin:0;height:100%;font:14px Arial,sans-serif;background:#171717;color:#fff;overflow:hidden;";
+    d.body.innerHTML = `
+      <style>
+        *{box-sizing:border-box}
+        .pip{height:100%;padding:14px 16px;display:grid;grid-template-columns:88px minmax(0,1fr);gap:15px;align-items:center;background:linear-gradient(145deg,#292929,#141414)}
+        #pipCover{width:88px;height:88px;object-fit:cover;border-radius:12px;background:#303030;display:none}
+        .info{min-width:0;display:flex;flex-direction:column;gap:8px}
+        .title{font-weight:700;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff}
+        .seek-wrap{display:flex;flex-direction:column;gap:4px}
+        .pip-wave{height:34px;width:100%;display:block;cursor:pointer;touch-action:pan-y;border-radius:5px}
+        .times{display:flex;justify-content:space-between;color:#bdbdbd;font-size:11px;font-variant-numeric:tabular-nums}
+        input[type=range]{appearance:none;width:100%;height:4px;border-radius:8px;background:#555;accent-color:#c47b45;cursor:pointer;margin:4px 0}
+        input[type=range]::-webkit-slider-thumb{appearance:none;width:13px;height:13px;border-radius:50%;background:#c47b45}
+        input[type=range]::-moz-range-thumb{width:13px;height:13px;border:0;border-radius:50%;background:#c47b45}
+        .bottom{display:flex;align-items:center;justify-content:space-between;gap:8px}
+        .transport,.tools{display:flex;align-items:center;gap:8px}
+        button{border:0;color:#fff;background:#353535;border-radius:50%;width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+        button:hover{filter:brightness(1.22)}
+        button svg{width:19px;height:19px;fill:currentColor}
+        #pipPlay{width:44px;height:44px;background:#b66d3d}
+        #pipPlay svg{width:24px;height:24px}
+        .track-nav{font-size:25px;font-weight:700;line-height:1;background:#4a3a30;width:32px;height:36px}
+        .track-nav:hover{background:#725039}
+        .tool-btn{width:34px;height:34px;font-size:12px;font-weight:700}
+        .tool-btn.active{background:#b66d3d;color:white}
+        #pipSpeed{width:42px;border-radius:18px;font-size:12px}
+        .volume{display:flex;align-items:center;gap:5px;min-width:86px}
+        .volume svg{width:17px;height:17px;fill:#ddd;flex-shrink:0}
+        #pipVolume{width:65px;margin:0}
+        @media(max-width:370px){.pip{grid-template-columns:64px minmax(0,1fr);gap:10px;padding:10px}#pipCover{width:64px;height:64px}.volume{min-width:65px}#pipVolume{width:45px}.transport,.tools{gap:5px}}
+      </style>
+      <div class="pip">
+        <img id="pipCover" alt="Обложка">
+        <div class="info">
+          <div class="title" id="pipTitle">Аудио</div>
+          <div class="seek-wrap"><canvas id="pipWaveCanvas" class="pip-wave" aria-label="Перемотка по звуковой волне"></canvas><div class="times"><span id="pipCurrent">0:00</span><span id="pipDuration">0:00</span></div></div>
+          <div class="bottom">
+            <div class="transport">
+              <button id="pipPrevTrack" class="track-nav" title="Предыдущий трек" style="display:none">‹</button>
+              <button id="pipBack" title="Назад на 10 секунд"><svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/><text x="12" y="15.5" font-size="5.5" text-anchor="middle" fill="#fff">10</text></svg></button>
+              <button id="pipPlay" title="Пуск / пауза"></button>
+              <button id="pipForward" title="Вперёд на 10 секунд"><svg viewBox="0 0 24 24"><path d="M18 13c0 3.31-2.69 6-6 6s-6-2.69-6-6 2.69-6 6-6v4l5-5-5-5v4c-4.42 0-8 3.58-8 8s3.58 8 8 8 8-3.58 8-8h-2z"/><text x="12" y="15.5" font-size="5.5" text-anchor="middle" fill="#fff">10</text></svg></button>
+              <button id="pipNextTrack" class="track-nav" title="Следующий трек" style="display:none">›</button>
+            </div>
+            <div class="tools">
+              <button class="tool-btn" id="pipLoop" title="Повтор" aria-label="Повтор"><svg viewBox="0 0 24 24"><path d="M7 7h11l-2.5-2.5L17 3l5 5-5 5-1.5-1.5L18 9H7a3 3 0 0 0-3 3v1H2v-1a5 5 0 0 1 5-5zm10 10H6l2.5 2.5L7 21l-5-5 5-5 1.5 1.5L6 15h11a3 3 0 0 0 3-3v-1h2v1a5 5 0 0 1-5 5z"/></svg></button>
+              <button class="tool-btn" id="pipSpeed" title="Скорость">1×</button>
+              <div class="volume"><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg><input id="pipVolume" type="range" min="0" max="1" step="0.02" value="1" title="Громкость"></div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    const playIcon = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
+    const pauseIcon = '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
+    d.getElementById("pipPlay").innerHTML = audioEl.paused ? playIcon : pauseIcon;
+    d.getElementById("pipPlay").addEventListener("click", () => {
+      if (!audioEl) return;
+      if (audioEl.paused) audioEl.play().then(() => { setPlayState(true); animateWave(); updateAudioPipState(); }).catch(() => {});
+      else { audioEl.pause(); setPlayState(false); if (waveAnimFrame) { cancelAnimationFrame(waveAnimFrame); waveAnimFrame = null; } updateAudioPipState(); }
+    });
+    d.getElementById("pipBack").addEventListener("click", () => { if (audioEl) audioEl.currentTime = Math.max(0, audioEl.currentTime - 10); });
+    d.getElementById("pipForward").addEventListener("click", () => { if (audioEl) audioEl.currentTime = Math.min(audioEl.duration || 0, audioEl.currentTime + 10); });
+    d.getElementById("pipPrevTrack").addEventListener("click", () => { if (typeof navigatePlaylistPlayback === "function") navigatePlaylistPlayback(-1); });
+    d.getElementById("pipNextTrack").addEventListener("click", () => { if (typeof navigatePlaylistPlayback === "function") navigatePlaylistPlayback(1); });
+    const pipWave = d.getElementById("pipWaveCanvas");
+    const seekFromWave = e => {
+      if (!audioEl?.duration || !pipWave) return;
+      const rect = pipWave.getBoundingClientRect();
+      const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+      audioEl.currentTime = audioEl.duration * (x / rect.width);
+      drawAudioPipWaveform();
+    };
+    pipWave.addEventListener("pointerdown", e => {
+      seekFromWave(e);
+      pipWave.setPointerCapture?.(e.pointerId);
+    });
+    pipWave.addEventListener("pointermove", e => {
+      if (e.buttons === 1) seekFromWave(e);
+    });
+    d.getElementById("pipLoop").addEventListener("click", () => {
+      audioLoopEnabled = !audioLoopEnabled;
+      if (audioEl) audioEl.loop = audioLoopEnabled;
+      if (audioLoopBtn) { audioLoopBtn.classList.toggle("active", audioLoopEnabled); audioLoopBtn.setAttribute("aria-pressed", String(audioLoopEnabled)); audioLoopBtn.title = audioLoopEnabled ? "Повтор включён" : "Повтор выключен"; }
+      updateAudioPipState();
+    });
+    d.getElementById("pipSpeed").addEventListener("click", () => {
+      currentSpeedIdx = (currentSpeedIdx + 1) % SPEED_STEPS.length;
+      const spd = SPEED_STEPS[currentSpeedIdx];
+      if (audioEl) audioEl.playbackRate = spd;
+      if (audioSpeedBtn) audioSpeedBtn.textContent = spd + "×";
+      updateAudioPipState();
+    });
+    d.getElementById("pipVolume").addEventListener("input", e => {
+      if (audioEl) audioEl.volume = Number(e.target.value);
+      if (audioVolume) audioVolume.value = e.target.value;
+    });
+    audioPipWindow.addEventListener("pagehide", () => { audioPipWindow = null; });
+    audioEl.addEventListener("timeupdate", updateAudioPipState);
+    audioEl.addEventListener("loadedmetadata", updateAudioPipState);
+    audioPipWindow.addEventListener("resize", drawAudioPipWaveform);
+    updateAudioPipState();
+  } catch (err) {
+    console.error("Audio PiP error:", err);
+    if (typeof showToast === "function") showToast("Не удалось открыть мини-плеер", "error");
+  }
+}
+if (audioPipBtn) audioPipBtn.addEventListener("click", openAudioPip);
+/* клик / скраб по волне */
+if (audioWaveContainer) {
+  let scrubbing = false;
+  const scrub = (e) => {
+    if (!audioEl || !audioEl.duration) return;
+    const rect = audioWaveContainer.getBoundingClientRect();
+    const pct  = Math.max(0, Math.min(1, (e.clientX - rect.left)/rect.width));
+    audioEl.currentTime = audioEl.duration * pct;
+    if (audioWaveProgress) audioWaveProgress.style.width = (pct*100).toFixed(2)+"%";
+    if (audioWaveCursor)   audioWaveCursor.style.left   = (pct*100).toFixed(2)+"%";
+  };
+  audioWaveContainer.addEventListener("click", scrub);
+  audioWaveContainer.addEventListener("mousedown", () => { scrubbing = true; });
+  window.addEventListener("mousemove", (e) => { if (scrubbing) scrub(e); });
+  window.addEventListener("mouseup",   () => { scrubbing = false; });
+}
+
+if (audioPlayBtn) {
+  audioPlayBtn.addEventListener("click", () => {
+    if (!audioEl) return;
+    if (audioEl.paused) {
+      audioEl.play().then(() => { setPlayState(true); animateWave(); }).catch(()=>{});
+    } else {
+      audioEl.pause(); setPlayState(false);
+      if (waveAnimFrame) { cancelAnimationFrame(waveAnimFrame); waveAnimFrame = null; }
+    }
+  });
+}
+if (audioRewind10)  audioRewind10.addEventListener("click",  () => { if (audioEl) audioEl.currentTime = Math.max(0, audioEl.currentTime-10); });
+if (audioForward10) audioForward10.addEventListener("click", () => { if (audioEl) audioEl.currentTime = Math.min(audioEl.duration||0, audioEl.currentTime+10); });
+if (audioVolume)    audioVolume.addEventListener("input",    () => { if (audioEl) audioEl.volume = parseFloat(audioVolume.value); updateAudioPipState(); });
+if (audioSpeedBtn)  audioSpeedBtn.addEventListener("click",  () => {
+  currentSpeedIdx = (currentSpeedIdx+1) % SPEED_STEPS.length;
+  const spd = SPEED_STEPS[currentSpeedIdx];
+  audioSpeedBtn.textContent = spd + "×";
+  if (audioEl) audioEl.playbackRate = spd;
+  updateAudioPipState();
+});
+
+if (audioLoopBtn) audioLoopBtn.addEventListener("click", () => {
+  audioLoopEnabled = !audioLoopEnabled;
+  if (audioEl) audioEl.loop = audioLoopEnabled;
+  audioLoopBtn.classList.toggle("active", audioLoopEnabled);
+  audioLoopBtn.title = audioLoopEnabled ? "Повтор включён" : "Повтор выключен";
+  audioLoopBtn.setAttribute("aria-label", audioLoopBtn.title);
+  audioLoopBtn.setAttribute("aria-pressed", String(audioLoopEnabled));
+  updateAudioPipState();
+});
+
+/* ════ Дополнительные дорожки озвучки ════ */
+function selectedAudioVoiceTrack() {
+  return currentAudioVoiceTracks.find((track) => track.id === currentAudioVoiceId) || null;
+}
+
+function selectedAudioSourceUrl() {
+  const track = selectedAudioVoiceTrack();
+  return track?.storage_url || currentAudioRecord?.r2_url || "";
+}
+
+function renderAudioVoiceList() {
+  if (!audioVoiceList || !currentAudioRecord) return;
+  const originalName = displayNameFor(currentAudioRecord.owner_code, currentAudioRecord.owner_name);
+  const originalActive = currentAudioVoiceId === "original";
+  let html = `<button type="button" class="audio-voice-option${originalActive ? " active" : ""}" data-voice-id="original">
+    <span>🎧</span><span class="audio-voice-option-label">Автор · ${escapeHtml(originalName)}</span>
+  </button>`;
+  html += currentAudioVoiceTracks.map((track) => {
+    const active = track.id === currentAudioVoiceId;
+    const uploader = displayNameFor(track.owner_code, track.owner_name);
+    return `<button type="button" class="audio-voice-option${active ? " active" : ""}" data-voice-id="${escapeHtml(track.id)}">
+      <span>🎙️</span><span class="audio-voice-option-label">${escapeHtml(track.voice_name || "Дополнительная озвучка")}${track.owner_code && track.owner_code !== currentAudioRecord.owner_code ? ` · ${escapeHtml(uploader)}` : ""}</span>
+      ${isOwner(currentAudioRecord) ? `<span class="audio-voice-delete" role="button" tabindex="0" data-delete-voice="${escapeHtml(track.id)}" title="Удалить эту озвучку">✕</span>` : ""}
+    </button>`;
+  }).join("");
+  audioVoiceList.innerHTML = html;
+
+  [...audioVoiceList.querySelectorAll(".audio-voice-option")].forEach((button) => {
+    button.addEventListener("click", async (e) => {
+      if (e.target.closest("[data-delete-voice]")) return;
+      await selectAudioVoice(button.dataset.voiceId);
+    });
+  });
+  [...audioVoiceList.querySelectorAll("[data-delete-voice]")].forEach((button) => {
+    const remove = async (e) => {
+      e.stopPropagation();
+      await deleteAudioVoiceTrack(button.dataset.deleteVoice);
+    };
+    button.addEventListener("click", remove);
+    button.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") remove(e); });
+  });
+}
+
+async function loadAudioVoiceTracks(record) {
+  if (!record) return;
+  const { data, error } = await db.from("burunduk_audio_voices")
+    .select("id,audio_id,voice_name,storage_key,storage_url,duration_sec,owner_code,owner_name,created_at")
+    .eq("audio_id", record.id)
+    .eq("status", "approved")
+    .order("created_at", { ascending: true });
+  if (error) {
+    console.error("[audio voices] Не удалось загрузить дополнительные озвучки:", error);
+    currentAudioVoiceTracks = [];
+    if (audioVoiceList) audioVoiceList.innerHTML = '<div class="audio-giger-choice-note">Дополнительные озвучки пока недоступны — проверь миграцию Supabase</div>';
+    return;
+  }
+  currentAudioVoiceTracks = data || [];
+  if (currentAudioVoiceTracks.length) await preloadProfilesFor(currentAudioVoiceTracks);
+  if (currentAudioVoiceId !== "original" && !currentAudioVoiceTracks.some((t) => t.id === currentAudioVoiceId)) {
+    currentAudioVoiceId = "original";
+  }
+  renderAudioVoiceList();
+}
+
+async function selectAudioVoice(voiceId) {
+  if (!currentAudioRecord) return;
+  const track = currentAudioVoiceTracks.find((item) => item.id === voiceId);
+  if (voiceId !== "original" && !track) return;
+  if (currentAudioVoiceId === voiceId) return;
+  const wasPlaying = !!audioEl && !audioEl.paused;
+  const resumeAt = audioEl?.currentTime || 0;
+  currentAudioVoiceId = voiceId;
+  renderAudioVoiceList();
+  const sourceRecord = track
+    ? { ...currentAudioRecord, r2_url: track.storage_url, r2_key: track.storage_key, duration_sec: track.duration_sec, isVoiceTrack: true }
+    : currentAudioRecord;
+  await loadAndPlayAudio(sourceRecord);
+  if (audioEl && Number.isFinite(resumeAt) && resumeAt > 0) {
+    const seekAfterMetadata = () => {
+      try { audioEl.currentTime = Math.min(resumeAt, Math.max(0, audioEl.duration - 0.2)); } catch (_) {}
+      if (!wasPlaying) { audioEl.pause(); setPlayState(false); }
+      audioEl.removeEventListener("loadedmetadata", seekAfterMetadata);
+    };
+    if (audioEl.readyState >= 1) seekAfterMetadata();
+    else audioEl.addEventListener("loadedmetadata", seekAfterMetadata);
+  } else if (!wasPlaying && audioEl) {
+    audioEl.pause();
+    setPlayState(false);
+  }
+}
+
+async function deleteAudioVoiceTrack(trackId) {
+  if (!currentAudioRecord || !isOwner(currentAudioRecord)) return;
+  const track = currentAudioVoiceTracks.find((item) => item.id === trackId);
+  if (!track) return;
+  if (!confirm(`Удалить озвучку «${track.voice_name}»? Её дорожка перестанет быть доступна слушателям.`)) return;
+  if (currentAudioVoiceId === trackId) {
+    currentAudioVoiceId = "original";
+    await loadAndPlayAudio(currentAudioRecord);
+  }
+  const { data: storageKey, error } = await db.rpc("delete_audio_voice_track", {
+    p_track_id: trackId,
+    p_owner_code: currentIdentity.code,
+  });
+  if (error) {
+    showToast("Не удалось удалить озвучку: " + error.message);
+    return;
+  }
+  if (storageKey) { try { await deleteAudioR2Object(storageKey); } catch (cleanupError) { console.warn("Не удалось удалить R2-дорожку", cleanupError); } }
+  showToast("Дополнительная озвучка удалена 🗑️");
+  await loadAudioVoiceTracks(currentAudioRecord);
+  await loadGiftState("audio", currentAudioRecord);
+}
+
+function getAudioFileDuration(file) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const probe = new Audio();
+    probe.preload = "metadata";
+    probe.onloadedmetadata = () => {
+      const duration = Number.isFinite(probe.duration) ? Math.round(probe.duration) : null;
+      URL.revokeObjectURL(url);
+      resolve(duration);
+    };
+    probe.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    probe.src = url;
+  });
+}
+
+/* ════ Лайтбокс ════ */
+async function openAudioLightbox(record, index, fromPlaylist = false) {
+  if (!fromPlaylist && typeof stopPlaylistPlayback === "function") stopPlaylistPlayback();
+  currentAudioRecord = record;
+  currentAudioIndex  = index;
+  if (!audioLightbox) return;
+  if (audioLbTitle)  audioLbTitle.textContent  = record.title || "Без названия";
+  if (audioLbDate)   audioLbDate.textContent   = formatPublishDate(record.created_at);
+  if (audioLbDesc) {
+    audioLbDesc.textContent  = record.description || "";
+    audioLbDesc.style.display = record.description ? "" : "none";
+  }
+  if (record.owner_code && audioLbAuthor) {
+    audioLbAuthor.innerHTML = `<span class="online-dot" data-online-for="${record.owner_code}"></span>от ${escapeHtml(displayNameFor(record.owner_code, record.owner_name))}`;
+    audioLbAuthor.dataset.owner = record.owner_code;
+    audioLbAuthor.style.display = "";
+    audioLbAuthor.onclick = () => openProfile(record.owner_code);
+  } else if (audioLbAuthor) { audioLbAuthor.style.display = "none"; }
+
+  if (record.cover_r2_url) {
+    audioLbCover.src = record.cover_r2_url;
+    audioLbCover.classList.remove("hidden");
+    audioLbCoverFb.classList.add("hidden");
+  } else {
+    audioLbCover.src = "";
+    audioLbCover.classList.add("hidden");
+    audioLbCoverFb.classList.remove("hidden");
+  }
+
+  const playlistMode = typeof hasActivePlaylistPlayback === "function" && hasActivePlaylistPlayback();
+  const playlistLength = playlistMode ? getActivePlaylistLength() : currentAudioList.length;
+  const hasMultiple = playlistLength > 1;
+  if (audioLbPrevBtn) audioLbPrevBtn.classList.toggle("hidden", !hasMultiple || (!playlistMode && index === 0));
+  if (audioLbNextBtn) audioLbNextBtn.classList.toggle("hidden", !hasMultiple || (!playlistMode && index === currentAudioList.length-1));
+  if (playlistMode && hasMultiple) {
+    if (audioLbPrevBtn) audioLbPrevBtn.classList.remove("hidden");
+    if (audioLbNextBtn) audioLbNextBtn.classList.remove("hidden");
+  }
+
+  if (audioLbTools) audioLbTools.classList.toggle("hidden", !isOwner(record));
+
+  audioLightbox.classList.add("open");
+  document.body.style.overflow = "hidden";
+
+  currentAudioVoiceId = "original";
+  await loadAudioVoiceTracks(record);
+  await loadAndPlayAudio(record);
+
+  currentRatingTarget["audio"] = record.id;
+  loadRatings("audio", record.id);
+  loadComments("audio", record.id);
+  loadGiftState("audio", record);
+}
+
+function closeAudioLightbox() {
+  if (!audioLightbox) return;
+  audioLightbox.classList.remove("open");
+  document.body.style.overflow = "";
+  stopAudio();
+  if (typeof stopPlaylistPlayback === "function") stopPlaylistPlayback();
+  currentAudioRecord = null;
+  currentAudioVoiceTracks = [];
+  currentAudioVoiceId = "original";
+  if (audioVoiceList) audioVoiceList.innerHTML = "";
+}
+
+if (audioLbClose) audioLbClose.addEventListener("click", closeAudioLightbox);
+if (audioLightbox) audioLightbox.addEventListener("click", (e) => { if (e.target === audioLightbox) closeAudioLightbox(); });
+if (audioLbPrevBtn) audioLbPrevBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (typeof navigatePlaylistPlayback === "function" && navigatePlaylistPlayback(-1)) return;
+  if (currentAudioIndex > 0) openAudioLightbox(currentAudioList[currentAudioIndex-1], currentAudioIndex-1);
+});
+if (audioLbNextBtn) audioLbNextBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (typeof navigatePlaylistPlayback === "function" && navigatePlaylistPlayback(1)) return;
+  if (currentAudioIndex < currentAudioList.length-1) openAudioLightbox(currentAudioList[currentAudioIndex+1], currentAudioIndex+1);
+});
+
+// Действия с аудиозаписью. Никаких дополнительных кнопок копирования описания.
+const audioLbShareBtn = document.getElementById("audioLbShareBtn");
+const audioLbDownloadBtn = document.getElementById("audioLbDownloadBtn");
+
+function audioRecordUrl(record) {
+  if (!record || location.protocol === "file:") return "";
+  const slug = slugify(record.title || "audio");
+  const shortId = String(record.id).replace(/-/g, "").slice(0, 8);
+  return `${location.origin}${location.pathname}#audio-${slug}--${shortId}`;
+}
+
+async function copyAudioShareUrl(url) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(url);
+    } else {
+      const field = document.createElement("textarea");
+      field.value = url;
+      field.setAttribute("readonly", "");
+      field.style.position = "fixed";
+      field.style.opacity = "0";
+      document.body.appendChild(field);
+      field.select();
+      const copied = document.execCommand("copy");
+      field.remove();
+      if (!copied) throw new Error("clipboard unavailable");
+    }
+    showToast("Ссылка скопирована 🔗");
+  } catch (err) {
+    console.error("Не удалось скопировать ссылку на аудио:", err);
+    showToast("Не удалось скопировать ссылку. Попробуй открыть сайт по HTTPS.");
+  }
+}
+
+if (audioLbShareBtn) audioLbShareBtn.addEventListener("click", async (e) => {
+  e.stopPropagation();
+  if (!currentAudioRecord) return;
+  const url = audioRecordUrl(currentAudioRecord);
+  if (!url) {
+    showToast("Ссылка file:/// работает только на твоём компьютере. Открой опубликованный сайт по HTTPS, чтобы поделиться аудио.");
+    return;
+  }
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: currentAudioRecord.title || "Аудио", url });
+      return;
+    } catch (err) {
+      if (err?.name === "AbortError") return;
+    }
+  }
+  await copyAudioShareUrl(url);
+});
+
+if (audioLbDownloadBtn) audioLbDownloadBtn.addEventListener("click", async (e) => {
+  e.stopPropagation();
+  const audioUrl = selectedAudioSourceUrl();
+  if (!audioUrl) return;
+  try {
+    const response = await fetch(audioUrl);
+    if (!response.ok) throw new Error("download failed");
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = objectUrl;
+    const activeVoice = selectedAudioVoiceTrack();
+    const voiceSuffix = activeVoice ? "_" + (activeVoice.voice_name || "озвучка") : "";
+    const activeStorageKey = activeVoice?.storage_key || currentAudioRecord.r2_key || "audio.mp3";
+    const extension = (activeStorageKey.split(".").pop() || "mp3").toLowerCase().replace(/[^a-z0-9]/g, "") || "mp3";
+    a.download = ((currentAudioRecord.title || "audio") + voiceSuffix).replace(/[^a-zа-яё0-9_-]/gi, "_") + "." + extension;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    showToast("Аудио скачивается ⬇️");
+  } catch {
+    window.open(audioUrl, "_blank", "noopener");
+    showToast("Открыл аудиофайл — его можно сохранить");
+  }
+});
+
+if (commentEls.audio?.submit)      commentEls.audio.submit.addEventListener("click",      () => submitComment("audio"));
+if (commentEls.audio?.replyCancel) commentEls.audio.replyCancel.addEventListener("click", () => setReplyTarget("audio", null));
+if (ratingEls.audio?.submit)       ratingEls.audio.submit.addEventListener("click",       () => submitRating("audio"));
+
+/* ════ Загрузка файлов на Supabase Storage (с прогресс-баром) ════ */
+let pickedAudioFile  = null;
+let pickedAudioCover = null;
+
+// Аудиофайлы и их загруженные обложки отправляются в Cloudflare R2 через существующий Worker.
+// Общий uploadFileXHR ниже остаётся для остальных типов файлов сайта (например, превью видео).
+function uploadAudioFileXHR(file, folder, onProgress) {
+  return new Promise((resolve, reject) => {
+    const workerBase = (typeof CLOUDFLARE_WORKER_URL === "string" ? CLOUDFLARE_WORKER_URL : "").replace(/\/$/, "");
+    if (!workerBase) return reject(new Error("Не настроен Cloudflare Worker"));
+    const form = new FormData();
+    form.append("file", file, file.name || "audio.bin");
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${workerBase}/audio/upload?folder=${encodeURIComponent(folder)}`);
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable && onProgress) onProgress(Math.round(e.loaded / e.total * 100)); };
+    xhr.onload = () => {
+      let result = {};
+      try { result = JSON.parse(xhr.responseText || "{}"); } catch (_) {}
+      if (xhr.status >= 200 && xhr.status < 300 && result.key && result.url) resolve(result);
+      else reject(new Error(result.error || `Cloudflare R2: HTTP ${xhr.status}`));
+    };
+    xhr.onerror = () => reject(new Error("Сетевая ошибка при загрузке в Cloudflare R2"));
+    xhr.send(form);
+  });
+}
+
+async function deleteAudioR2Object(key) {
+  if (!key) return;
+  const workerBase = (typeof CLOUDFLARE_WORKER_URL === "string" ? CLOUDFLARE_WORKER_URL : "").replace(/\/$/, "");
+  if (!workerBase) throw new Error("Не настроен Cloudflare Worker");
+  const response = await fetch(`${workerBase}/audio/object?key=${encodeURIComponent(key)}`, { method: "DELETE" });
+  if (!response.ok) {
+    let message = `Cloudflare R2: HTTP ${response.status}`;
+    try { message = (await response.json()).error || message; } catch (_) {}
+    throw new Error(message);
+  }
+}
+
+function uploadFileXHR(file, folder, onProgress) {
+  return new Promise((resolve, reject) => {
+    const ext = (file.name.split(".").pop() || "bin").toLowerCase();
+    const key = `${folder}/${crypto.randomUUID()}.${ext}`;
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", `${SUPABASE_URL}/storage/v1/object/${BUCKET_NAME}/${key}`);
+    xhr.setRequestHeader("Authorization", `Bearer ${SUPABASE_ANON_KEY}`);
+    xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+    xhr.setRequestHeader("x-upsert", "false");
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(Math.round(e.loaded/e.total*100)); };
+    xhr.onload = () => {
+      if (xhr.status === 200 || xhr.status === 201) {
+        const { data } = db.storage.from(BUCKET_NAME).getPublicUrl(key);
+        resolve({ key, url: data.publicUrl });
+      } else reject(new Error(`HTTP ${xhr.status}: ${xhr.responseText}`));
+    };
+    xhr.onerror = () => reject(new Error("Сетевая ошибка"));
+    xhr.send(file);
+  });
+}
+
+function setPickedAudioVoiceFile(file) {
+  pickedAudioVoiceFile = file;
+  if (audioVoiceFilePickText) audioVoiceFilePickText.textContent = `🎵 ${file.name}`;
+}
+
+function resetAudioVoiceModal() {
+  pickedAudioVoiceFile = null;
+  if (audioVoiceFilePickText) audioVoiceFilePickText.textContent = "📂 Выбрать MP3 / OGG / WAV";
+  if (audioVoiceNameInput) audioVoiceNameInput.value = "";
+  if (audioVoiceUploadProgress) audioVoiceUploadProgress.classList.add("hidden");
+  if (audioVoiceProgressFill) audioVoiceProgressFill.style.width = "0%";
+  if (audioVoiceProgressLabel) audioVoiceProgressLabel.textContent = "Загружаю...";
+}
+
+if (audioAddVoiceBtn) audioAddVoiceBtn.addEventListener("click", () => {
+  if (!currentAudioRecord) return;
+  if (!currentIdentity) { ensureIdentity(); return; }
+  resetAudioVoiceModal();
+  audioVoiceModal?.classList.add("active");
+});
+if (audioVoiceCancel) audioVoiceCancel.addEventListener("click", () => audioVoiceModal?.classList.remove("active"));
+if (audioVoiceFileDrop) {
+  audioVoiceFileDrop.addEventListener("click", () => audioVoiceFileInput?.click());
+  audioVoiceFileDrop.addEventListener("dragover", (e) => { e.preventDefault(); audioVoiceFileDrop.classList.add("drag-over"); });
+  audioVoiceFileDrop.addEventListener("dragleave", () => audioVoiceFileDrop.classList.remove("drag-over"));
+  audioVoiceFileDrop.addEventListener("drop", (e) => {
+    e.preventDefault(); audioVoiceFileDrop.classList.remove("drag-over");
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith("audio/")) setPickedAudioVoiceFile(file);
+  });
+}
+if (audioVoiceFileInput) audioVoiceFileInput.addEventListener("change", () => {
+  const file = audioVoiceFileInput.files[0];
+  audioVoiceFileInput.value = "";
+  if (file) setPickedAudioVoiceFile(file);
+});
+if (audioVoiceSave) audioVoiceSave.addEventListener("click", async () => {
+  if (!currentIdentity || !currentAudioRecord) { showToast("Сначала выбери аудиокнигу и имя"); return; }
+  const voiceName = audioVoiceNameInput?.value.trim();
+  if (!voiceName) { showToast("Укажи название озвучки"); return; }
+  if (!pickedAudioVoiceFile) { showToast("Выбери аудиофайл"); return; }
+
+  audioVoiceSave.disabled = true;
+  audioVoiceUploadProgress?.classList.remove("hidden");
+  if (audioVoiceProgressLabel) audioVoiceProgressLabel.textContent = "Определяю длительность...";
+  let uploadResult = null;
+  try {
+    const duration = await getAudioFileDuration(pickedAudioVoiceFile);
+    if (audioVoiceProgressLabel) audioVoiceProgressLabel.textContent = "Загружаю озвучку...";
+    uploadResult = await uploadAudioFileXHR(pickedAudioVoiceFile, "audio-voices", (pct) => {
+      if (audioVoiceProgressFill) audioVoiceProgressFill.style.width = pct + "%";
+      if (audioVoiceProgressLabel) audioVoiceProgressLabel.textContent = `Озвучка: ${pct}%`;
+    });
+    const { data, error } = await db.rpc("add_audio_voice_track", {
+      p_audio_id: currentAudioRecord.id,
+      p_voice_name: voiceName,
+      p_storage_key: uploadResult.key,
+      p_storage_url: uploadResult.url,
+      p_duration_sec: duration,
+      p_uploader_code: currentIdentity.code,
+      p_uploader_name: currentIdentity.name,
+    });
+    if (error) throw error;
+    audioVoiceModal?.classList.remove("active");
+    const status = data?.status || data?.[0]?.status;
+    showToast(status === "approved" ? "Твоя дополнительная дорожка опубликована 🎙️" : "Запись отправлена автору на подтверждение 🔔");
+    await loadAudioVoiceTracks(currentAudioRecord);
+    await loadGiftState("audio", currentAudioRecord);
+  } catch (err) {
+    if (uploadResult?.key) { try { await deleteAudioR2Object(uploadResult.key); } catch (cleanupError) { console.warn("Не удалось удалить временный R2-файл", cleanupError); } }
+    showToast("Не удалось добавить озвучку: " + (err?.message || err));
+  } finally {
+    audioVoiceSave.disabled = false;
+  }
+});
+
+if (audioFileDrop) {
+  audioFileDrop.addEventListener("click", () => audioFileInput.click());
+  audioFileDrop.addEventListener("dragover",  (e) => { e.preventDefault(); audioFileDrop.classList.add("drag-over"); });
+  audioFileDrop.addEventListener("dragleave", ()  => audioFileDrop.classList.remove("drag-over"));
+  audioFileDrop.addEventListener("drop", (e) => {
+    e.preventDefault(); audioFileDrop.classList.remove("drag-over");
+    const f = e.dataTransfer.files[0];
+    if (f && f.type.startsWith("audio/")) setPickedAudioFile(f);
+  });
+}
+if (audioFileInput) audioFileInput.addEventListener("change", () => {
+  const f = audioFileInput.files[0]; audioFileInput.value = "";
+  if (f) setPickedAudioFile(f);
+});
+function setPickedAudioFile(f) {
+  pickedAudioFile = f;
+  if (audioFilePickText) audioFilePickText.textContent = `🎵 ${f.name}`;
+}
+if (audioCoverPickBtn) audioCoverPickBtn.addEventListener("click", () => audioCoverFileInput.click());
+if (audioCoverFileInput) audioCoverFileInput.addEventListener("change", () => {
+  const f = audioCoverFileInput.files[0]; audioCoverFileInput.value = "";
+  if (f) {
+    pickedAudioCover = f;
+    selectedAudioCoverGalleryUrl = null;
+    audioCoverPreview.src = URL.createObjectURL(f);
+    audioCoverPreview.classList.remove("hidden");
+  }
+});
+if (audioCoverGalleryBtn) audioCoverGalleryBtn.addEventListener("click", () => openPhotoPicker(url => {
+  pickedAudioCover = null;
+  selectedAudioCoverGalleryUrl = url;
+  audioCoverPreview.src = url;
+  audioCoverPreview.classList.remove("hidden");
+}));
+
+function resetAudioModal() {
+  pickedAudioFile = pickedAudioCover = null;
+  selectedAudioCoverGalleryUrl = null;
+  if (audioFilePickText) audioFilePickText.textContent = "📂 Нажми или перетащи MP3 / OGG / WAV";
+  if (audioCoverPreview) { audioCoverPreview.src = ""; audioCoverPreview.classList.add("hidden"); }
+  if (audioTitleInput) audioTitleInput.value = "";
+  if (audioDescInput) audioDescInput.value = "";
+  if (audioCategory) audioCategory.value = allCategories[0]?.id || "";
+  newAudioCategoryWrap?.classList.add("hidden");
+  if (newAudioCategoryName) newAudioCategoryName.value = "";
+  if (audioUploadProgress) audioUploadProgress.classList.add("hidden");
+  if (audioProgressFill)   audioProgressFill.style.width = "0%";
+  if (audioProgressLabel)  audioProgressLabel.textContent = "Загружаю...";
+}
+
+if (uploadAudioBtn) uploadAudioBtn.addEventListener("click", () => { resetAudioModal(); audioModal?.classList.add("active"); });
+if (audioModalCancel) audioModalCancel.addEventListener("click", () => audioModal?.classList.remove("active"));
+
+if (audioModalSave) {
+  audioModalSave.addEventListener("click", async () => {
+    if (!currentIdentity) { showToast("Сначала выбери имя"); return; }
+    if (!pickedAudioFile)  { showToast("Выбери аудио файл"); return; }
+    const title = audioTitleInput?.value.trim();
+    if (!title) { showToast("Введи название трека"); return; }
+
+    let audioCategoryId = audioCategory?.value || "";
+    if (audioCategoryId === NEW_CATEGORY_VALUE) {
+      const categoryName = (newAudioCategoryName?.value || "").trim();
+      if (!categoryName) { showToast("Введи название нового раздела"); return; }
+      const created = await createPendingCategory(categoryName, currentIdentity.name, currentIdentity.code);
+      if (!created) { showToast("Не удалось создать раздел"); return; }
+      audioCategoryId = created.id;
+    }
+    if (!audioCategoryId) { showToast("Выбери раздел"); return; }
+
+    audioModalSave.disabled = true;
+    audioUploadProgress?.classList.remove("hidden");
+    if (audioProgressLabel) audioProgressLabel.textContent = "Загружаю аудио...";
+
+    try {
+      const audioResult = await uploadAudioFileXHR(pickedAudioFile, "audio", (pct) => {
+        if (audioProgressFill)  audioProgressFill.style.width = pct + "%";
+        if (audioProgressLabel) audioProgressLabel.textContent = `Аудио: ${pct}%`;
+      });
+
+      let coverResult = null;
+      let coverUrl = selectedAudioCoverGalleryUrl;
+      if (pickedAudioCover) {
+        if (audioProgressLabel) audioProgressLabel.textContent = "Загружаю обложку...";
+        coverResult = await uploadAudioFileXHR(pickedAudioCover, "audio-covers", (pct) => {
+          if (audioProgressFill) audioProgressFill.style.width = pct + "%";
+        });
+        coverUrl = coverResult.url;
+      }
+
+      const { data: newAudio, error } = await db.from(AUDIO_TABLE).insert({
+        title,
+        description:   audioDescInput?.value.trim() || null,
+        r2_key:        audioResult.key,
+        r2_url:        audioResult.url,
+        cover_r2_key:  coverResult?.key  || null,
+        cover_r2_url:  coverUrl || null,
+        owner_name:    currentIdentity.name,
+        owner_code:    currentIdentity.code,
+        category_id:   audioCategoryId,
+        created_at:    new Date().toISOString(),
+      }).select().single();
+      if (error) { showToast("Ошибка: " + error.message); return; }
+      const rewardAdded = await creditGigersForPublish("audio");
+      await notifyFollowersOfNewPost("audio", { id: newAudio.id, name: newAudio.title });
+      audioModal?.classList.remove("active");
+      showToast(rewardAdded ? "Аудио опубликовано! +3 гиперзадки 🎵" : "Аудио опубликовано, но награду начислить не удалось. Сообщи об этом администратору.");
+      await loadAudio();
+    } catch (e) {
+      showToast("Ошибка загрузки: " + e.message);
+    } finally {
+      audioModalSave.disabled = false;
+    }
+  });
+}
+
+if (audioLbEditBtn) {
+  audioLbEditBtn.addEventListener("click", () => {
+    if (!currentAudioRecord) return;
+    if (editAudioTitle) editAudioTitle.value = currentAudioRecord.title || "";
+    if (editAudioDesc)  editAudioDesc.value  = currentAudioRecord.description || "";
+    pickedEditAudioCoverFile = null;
+    selectedEditAudioCoverUrl = currentAudioRecord.cover_r2_url || null;
+    editAudioCoverChanged = false;
+    if (editAudioCoverPreview) {
+      if (selectedEditAudioCoverUrl) { editAudioCoverPreview.src = selectedEditAudioCoverUrl; editAudioCoverPreview.classList.remove("hidden"); }
+      else { editAudioCoverPreview.removeAttribute("src"); editAudioCoverPreview.classList.add("hidden"); }
+    }
+    editAudioModal?.classList.add("active");
+  });
+}
+if (editAudioCancel) editAudioCancel.addEventListener("click", () => editAudioModal?.classList.remove("active"));
+if (editAudioSave) {
+  editAudioSave.addEventListener("click", async () => {
+    if (!currentAudioRecord) return;
+    const title = editAudioTitle?.value.trim();
+    if (!title) { showToast("Введи название"); return; }
+    let coverUpdate = {};
+    let uploadedEditCover = null;
+    if (editAudioCoverChanged) {
+      try {
+        if (pickedEditAudioCoverFile) {
+          uploadedEditCover = await uploadAudioFileXHR(pickedEditAudioCoverFile, "audio-covers", () => {});
+          coverUpdate = { cover_r2_url: uploadedEditCover.url, cover_r2_key: uploadedEditCover.key };
+        } else {
+          coverUpdate = { cover_r2_url: selectedEditAudioCoverUrl || null, cover_r2_key: null };
+        }
+      } catch (uploadError) {
+        showToast("Не удалось загрузить обложку: " + uploadError.message);
+        return;
+      }
+    }
+    const { error } = await db.from(AUDIO_TABLE).update({
+      title,
+      description: editAudioDesc?.value.trim() || null,
+      ...coverUpdate,
+    }).eq("id", currentAudioRecord.id);
+    if (error) { showToast("Ошибка: " + error.message); return; }
+    if (editAudioCoverChanged && currentAudioRecord.cover_r2_key && currentAudioRecord.cover_r2_key !== uploadedEditCover?.key) {
+      await deleteAudioR2Object(currentAudioRecord.cover_r2_key).catch(err => console.warn("Не удалось удалить старую обложку из R2", err));
+    }
+    editAudioModal?.classList.remove("active");
+    currentAudioRecord.title = title;
+    currentAudioRecord.description = editAudioDesc?.value.trim() || null;
+    if (editAudioCoverChanged) {
+      currentAudioRecord.cover_r2_url = coverUpdate.cover_r2_url;
+      currentAudioRecord.cover_r2_key = coverUpdate.cover_r2_key;
+    }
+    if (audioLbTitle) audioLbTitle.textContent = title;
+    showToast("Трек обновлён ✏️");
+    await loadAudio();
+  });
+}
+
+if (audioLbDeleteBtn) {
+  audioLbDeleteBtn.addEventListener("click", async () => {
+    if (!currentAudioRecord) return;
+    if (!confirm(`Удалить трек «${currentAudioRecord.title}»?`)) return;
+    stopAudio();
+    const { data: voiceFiles } = await db.rpc("audio_voice_storage_keys_for_delete", {
+      p_audio_id: currentAudioRecord.id,
+      p_owner_code: currentIdentity.code,
+    });
+    const { error } = await db.from(AUDIO_TABLE).delete().eq("id", currentAudioRecord.id);
+    if (error) { showToast("Ошибка: " + error.message); return; }
+    const storageKeys = [
+      currentAudioRecord.r2_key,
+      currentAudioRecord.cover_r2_key,
+      ...(voiceFiles || []),
+    ].filter(Boolean);
+    for (const key of storageKeys) { try { await deleteAudioR2Object(key); } catch (cleanupError) { console.warn("Не удалось удалить R2-файл аудио", key, cleanupError); } }
+    closeAudioLightbox();
+    showToast("Трек удалён 🗑");
+    await loadAudio();
   });
 }

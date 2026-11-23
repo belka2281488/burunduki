@@ -103,6 +103,7 @@
     <button id="tabPhoto" class="tab-btn active">🖼️ Фото</button>
     <button id="tabVideo" class="tab-btn">🎬 Видео</button>
     <button id="tabText" class="tab-btn">📝 Тексты</button>
+    <button id="tabAudio" class="tab-btn">🎵 Аудио</button>
     <button id="tabGames" class="tab-btn">🎮 Игры</button>
   </div>
 
@@ -165,6 +166,15 @@
     <button id="uploadPhotoBtn" class="pick-btn">➕ Добавить бурундука</button>
     <button id="uploadVideoBtn" class="pick-btn hidden">➕ Добавить видео</button>
     <button id="uploadTextBtn" class="pick-btn hidden">📝 Добавить текст</button>
+    <div id="audioSectionActions" class="audio-section-actions hidden">
+      <div class="audio-section-nav">
+        <button id="audioLibraryBtn" class="audio-section-nav-btn active" type="button">🎵 Аудио</button>
+        <button id="audioPlaylistsBtn" class="audio-section-nav-btn" type="button">📚 Плейлисты</button>
+        <button id="audioAiNarrationBtn" class="audio-section-nav-btn" type="button">✨ ИИ-озвучка</button>
+      </div>
+      <button id="uploadAudioBtn" class="pick-btn" type="button">＋ Добавить трек</button>
+      <button id="uploadPlaylistBtn" class="pick-btn hidden" type="button">＋ Добавить плейлист</button>
+    </div>
     <button id="uploadGameBtn" class="pick-btn hidden">🎮 Добавить игру</button>
     <div id="status" class="status">Загружаю галерею...</div>
   </div>
@@ -172,7 +182,75 @@
   <div id="galleryPhoto" class="gallery"></div>
   <div id="galleryVideo" class="gallery hidden"></div>
   <div id="galleryText" class="gallery gallery-text hidden"></div>
+  <div id="galleryAudio" class="gallery gallery-audio hidden"></div>
+  <div id="galleryPlaylists" class="gallery gallery-audio hidden"></div>
+  <div id="galleryAiVoices" class="gallery gallery-audio hidden"></div>
+  <section id="aiVoiceDetail" class="ai-voice-detail hidden" aria-live="polite"></section>
+  <div id="aiVoiceCreateModal" class="modal">
+    <div class="modal-box ai-voice-modal-box">
+      <h3>🎙️ Добавить голос</h3>
+      <label class="modal-label" for="aiVoiceTitle">Название</label>
+      <input id="aiVoiceTitle" class="modal-input" maxlength="70" placeholder="Например, Голос Бурундука">
+      <label class="modal-label" for="aiVoiceDescription">Описание (необязательно)</label>
+      <textarea id="aiVoiceDescription" class="modal-input" rows="3" maxlength="500" placeholder="Расскажи об этом голосе"></textarea>
+      <label class="modal-label">Образец аудио</label>
+      <div class="ai-voice-source-switch">
+        <button id="aiVoiceUploadSource" class="tool-btn active" type="button">Загрузить файл</button>
+        <button id="aiVoiceLibrarySource" class="tool-btn" type="button">Выбрать из аудиогалереи</button>
+      </div>
+      <div id="aiVoiceUploadPanel">
+        <input id="aiVoiceSampleFile" type="file" accept=".mp3,.wav,audio/mpeg,audio/wav" class="modal-input">
+        <div class="modal-hint">Лучше использовать чистую запись речи без музыки и фонового шума. Формат MP3 или WAV, 1–60 секунд, до 20 МБ.</div>
+      </div>
+      <div id="aiVoiceLibraryPanel" class="hidden">
+        <select id="aiVoiceAudioSelect" class="modal-input"><option value="">Загружаю аудиогалерею…</option></select>
+      </div>
+      <label class="modal-label" for="aiVoiceCategory">Раздел публикации</label>
+      <select id="aiVoiceCategory" class="modal-input"></select>
+      <div id="aiVoiceNewCategoryWrap" class="hidden">
+        <input id="aiVoiceNewCategory" class="modal-input" maxlength="50" placeholder="Название нового раздела">
+      </div>
+      <div id="aiVoiceUploadProgress" class="hidden ai-voice-progress">Загружаю образец…</div>
+      <div class="modal-actions">
+        <button id="aiVoiceCreateCancel" class="tool-btn" type="button">Отмена</button>
+        <button id="aiVoiceCreateSave" class="pick-btn small" type="button">Опубликовать голос</button>
+      </div>
+    </div>
+  </div>
+
   <div id="galleryGames" class="gallery gallery-games hidden"></div>
+
+  <!-- Подробная страница плейлиста -->
+  <div id="playlistsModal" class="playlist-page hidden">
+    <div class="playlist-modal-box">
+      <div id="playlistDetailView" class="playlist-view hidden">
+        <button id="playlistBackBtn" class="playlist-back-btn" type="button">← К плейлистам</button>
+        <div class="playlist-detail-heading">
+          <div class="playlist-detail-cover" id="playlistDetailCover">♫</div>
+          <div class="playlist-detail-heading-text">
+            <div class="playlist-detail-title" id="playlistDetailTitle"></div>
+            <div class="playlist-detail-owner" id="playlistDetailOwner"></div>
+            <div class="playlist-privacy-note" id="playlistPrivacyNote"></div>
+          </div>
+        </div>
+        <div class="playlist-detail-actions">
+          <button id="playlistPlayBtn" class="pick-btn small" type="button">▶ Слушать</button>
+          <button id="playlistAddTracksBtn" class="tool-btn" type="button">＋ Добавить треки</button>
+          <button id="playlistPublishBtn" class="tool-btn" type="button">🌐 Опубликовать</button>
+          <button id="playlistRenameBtn" class="tool-btn" type="button">✏️ Переименовать</button>
+          <button id="playlistDeleteBtn" class="tool-btn danger" type="button">🗑 Удалить</button>
+        </div>
+        <div class="playlist-entries-heading" id="playlistEntriesHeading">Треки</div>
+        <div id="playlistEntries" class="playlist-entries"></div>
+      </div>
+      <div id="playlistTrackPickerView" class="playlist-view hidden">
+        <button id="playlistPickerBackBtn" class="playlist-back-btn" type="button">← Назад к плейлисту</button>
+        <div class="playlist-picker-title">Добавить аудио</div>
+        <input id="playlistTrackSearch" class="modal-input playlist-track-search" type="search" placeholder="Найти трек или автора...">
+        <div id="playlistTrackPickerList" class="playlist-track-picker-list"></div>
+      </div>
+    </div>
+  </div>
 </main>
 
 <!-- Страница профиля автора -->
@@ -456,6 +534,16 @@
 <div id="videoModal" class="modal">
   <div class="modal-box">
     <h3 id="videoModalTitle">Новое видео 🎬</h3>
+
+    <div class="preview-source-control video-preview-control">
+      <img id="videoPreviewImage" class="content-preview-image hidden" src="" alt="Превью видео">
+      <div class="preview-source-buttons">
+        <button type="button" id="videoPreviewFileBtn" class="tool-btn">📁 Из файлов</button>
+        <button type="button" id="videoPreviewGalleryBtn" class="tool-btn">🖼️ Из галереи</button>
+      </div>
+      <input type="file" id="videoPreviewFileInput" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none">
+      <div class="modal-hint">Превью необязательно. Его можно выбрать из файлов или из уже загруженных фото.</div>
+    </div>
 
     <label class="modal-label">Источник видео</label>
     <div class="source-picker" id="sourcePicker">
@@ -777,13 +865,198 @@
   </div>
 </div>
 
+
+<!-- ══ Аудио лайтбокс ══ -->
+<div id="audioLightbox" class="audio-lightbox">
+  <button class="lightbox-close" id="audioLightboxClose">&times;</button>
+  <div class="audio-lightbox-inner">
+    <div class="audio-lb-cover-col">
+      <div class="audio-lb-cover-wrap">
+        <img id="audioLbCover" class="audio-lb-cover hidden" src="" alt="">
+        <div id="audioLbCoverFallback" class="audio-lb-cover-fallback">🎵</div>
+      </div>
+      <div class="audio-lb-meta">
+        <div class="audio-lb-title" id="audioLbTitle"></div>
+        <div class="audio-lb-author owner-tag-link" id="audioLbAuthor"></div>
+        <div class="audio-lb-date" id="audioLbDate"></div>
+        <div class="audio-lb-desc" id="audioLbDesc"></div>
+      </div>
+    </div>
+    <div class="audio-lb-player-col">
+      <div class="audio-lb-nav">
+        <button id="audioLbPrevBtn" class="tool-btn nav-btn hidden">← Пред.</button>
+        <button id="audioLbNextBtn" class="tool-btn nav-btn hidden">След. →</button>
+      </div>
+      <div class="audio-voices-panel">
+        <div class="audio-voices-heading">🎙️ Дорожки озвучки</div>
+        <div id="audioVoiceList" class="audio-voice-list"></div>
+        <button id="audioAddVoiceBtn" class="tool-btn audio-add-voice-btn" type="button">＋ Добавить озвучку</button>
+      </div>
+      <div class="audio-player-wrap">
+        <div class="audio-wave-container" id="audioWaveContainer">
+          <canvas id="audioWaveCanvas" class="audio-wave-canvas"></canvas>
+          <div class="audio-wave-progress" id="audioWaveProgress"></div>
+          <div class="audio-wave-cursor" id="audioWaveCursor"></div>
+        </div>
+        <div class="audio-controls">
+          <button class="audio-ctrl-btn audio-rewind-btn" id="audioRewind10" title="−10 сек">
+            <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/><text x="12" y="15.5" font-size="5.5" text-anchor="middle" fill="currentColor">10</text></svg>
+          </button>
+          <button class="audio-ctrl-btn audio-play-btn" id="audioPlayBtn" title="Пауза / Пуск">
+            <svg id="audioPlayIcon" viewBox="0 0 24 24" width="28" height="28"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+            <svg id="audioPauseIcon" viewBox="0 0 24 24" width="28" height="28" style="display:none"><path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+          </button>
+          <button class="audio-ctrl-btn audio-rewind-btn" id="audioForward10" title="+10 сек">
+            <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M18 13c0 3.31-2.69 6-6 6s-6-2.69-6-6 2.69-6 6-6v4l5-5-5-5v4c-4.42 0-8 3.58-8 8s3.58 8 8 8 8-3.58 8-8h-2z"/><text x="12" y="15.5" font-size="5.5" text-anchor="middle" fill="currentColor">10</text></svg>
+          </button>
+          <div class="audio-time-display">
+            <span id="audioCurTime">0:00</span>
+            <span class="audio-time-sep">/</span>
+            <span id="audioDurTime">0:00</span>
+          </div>
+          <div class="audio-volume-wrap">
+            <svg viewBox="0 0 24 24" width="16" height="16" class="audio-vol-icon"><path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+            <input type="range" class="audio-volume-slider" id="audioVolume" min="0" max="1" step="0.02" value="1">
+          </div>
+          <button class="audio-ctrl-btn audio-speed-btn" id="audioSpeedBtn" title="Скорость">1×</button>
+          <button class="audio-ctrl-btn audio-loop-btn" id="audioLoopBtn" title="Повтор выключен" aria-label="Повтор выключен" aria-pressed="false">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+              <path fill="currentColor" d="M7 7h11l-2.5-2.5L17 3l5 5-5 5-1.5-1.5L18 9H7a3 3 0 0 0-3 3v1H2v-1a5 5 0 0 1 5-5zm10 10H6l2.5 2.5L7 21l-5-5 5-5 1.5 1.5L6 15h11a3 3 0 0 0 3-3v-1h2v1a5 5 0 0 1-5 5z"/>
+            </svg>
+          </button>
+          <button class="audio-ctrl-btn audio-pip-btn" id="audioPipBtn" title="Открыть мини-плеер" aria-label="Открыть мини-плеер">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19 7h-8v6h8V7zm2-4H3a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm0 16H3V5h18v14z"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="rating-panel audio-rating-panel">
+        <div class="rating-summary">
+          <img id="audioRatingSummaryImg" class="rating-summary-img" src="assets/mtn.png" alt="" style="visibility:hidden">
+          <div class="rating-summary-info">
+            <div id="audioRatingScore" class="rating-summary-score">Пока нет оценок</div>
+            <div id="audioRatingLabel" class="rating-summary-label">Будь первым, кто оценит</div>
+          </div>
+        </div>
+        <div class="rating-own">
+          <div id="audioRatingPicker" class="rating-picker"></div>
+          <button id="audioRatingSubmit" class="pick-btn small" type="button">Оценить</button>
+        </div>
+      </div>
+      <div class="comments-section">
+        <div class="comments-list" id="audioCommentList"></div>
+        <div class="comment-reply-hint hidden" id="audioReplyHint">
+          Ответ для <b id="audioReplyHintName"></b>
+          <button id="audioReplyCancelBtn" type="button" class="comment-reply-cancel" title="Отменить ответ">✕</button>
+        </div>
+        <textarea id="audioCommentInput" class="modal-input modal-textarea rating-comment-input" placeholder="Написать комментарий..."></textarea>
+        <div class="giger-gift-box audio-giger-gift-box" id="audioGigerBox">
+          <div id="audioGigerChoices" class="audio-giger-choices"></div>
+        </div>
+        <button id="audioCommentSubmit" class="pick-btn small">Отправить</button>
+      </div>
+      <div class="audio-lb-actions">
+        <button id="audioLbShareBtn" class="tool-btn" title="Поделиться ссылкой на это аудио">🔗 Поделиться</button>
+        <button id="audioLbDownloadBtn" class="tool-btn">⬇️ Скачать</button>
+      </div>
+      <div class="audio-lb-tools hidden" id="audioLbTools">
+        <button id="audioLbEditBtn" class="tool-btn">✏️ Редактировать</button>
+        <button id="audioLbDeleteBtn" class="tool-btn danger">🗑 Удалить</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Модал добавления аудио ══ -->
+<div id="audioModal" class="modal">
+  <div class="modal-box">
+    <h3>🎵 Добавить аудио трек</h3>
+    <div class="audio-upload-row">
+      <div class="audio-file-pick-area" id="audioFileDrop">
+        <div class="audio-file-pick-inner">
+          <span id="audioFilePickText">📂 Нажми или перетащи MP3 / OGG / WAV</span>
+        </div>
+        <input type="file" id="audioFileInput" accept="audio/mpeg,audio/ogg,audio/wav,audio/mp4,audio/aac" style="display:none">
+      </div>
+      <div class="audio-cover-pick-area">
+        <img id="audioCoverPreview" class="audio-cover-preview hidden" src="" alt="">
+        <div class="preview-source-buttons preview-source-buttons-vertical">
+          <button id="audioCoverPickBtn" type="button" class="tool-btn">📁 Из файлов</button>
+          <button id="audioCoverGalleryBtn" type="button" class="tool-btn">🖼️ Из галереи</button>
+        </div>
+        <input type="file" id="audioCoverFileInput" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none">
+      </div>
+    </div>
+    <input type="text" id="audioTitle" class="modal-input" placeholder="Название трека" maxlength="80">
+    <textarea id="audioDesc" class="modal-input modal-textarea" placeholder="Описание (необязательно)" maxlength="400"></textarea>
+    <label class="modal-label" for="audioCategory">Раздел</label>
+    <select id="audioCategory" class="modal-input"></select>
+    <div id="newAudioCategoryWrap" class="hidden">
+      <input type="text" id="newAudioCategoryName" class="modal-input" placeholder="название нового раздела">
+      <div class="modal-hint">Раздел появится у всех после одобрения в админ-панельке.</div>
+    </div>
+    <div id="audioUploadProgress" class="audio-upload-progress hidden">
+      <div class="audio-progress-bar"><div class="audio-progress-fill" id="audioProgressFill"></div></div>
+      <div class="audio-progress-label" id="audioProgressLabel">Загружаю...</div>
+    </div>
+    <div class="modal-actions">
+      <button id="audioModalCancel" class="tool-btn">Отмена</button>
+      <button id="audioModalSave" class="pick-btn small">Загрузить</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Модал добавления дополнительной озвучки ══ -->
+<div id="audioVoiceModal" class="modal">
+  <div class="modal-box">
+    <h3>🎙️ Добавить дополнительную озвучку</h3>
+    <p class="audio-voice-modal-hint">Прикрепи свою запись и укажи, как она будет называться. Если ты не автор этой аудиокниги, автору придёт запрос на подтверждение.</p>
+    <div class="audio-file-pick-area" id="audioVoiceFileDrop">
+      <div class="audio-file-pick-inner"><span id="audioVoiceFilePickText">📂 Выбрать MP3 / OGG / WAV</span></div>
+      <input type="file" id="audioVoiceFileInput" accept="audio/mpeg,audio/ogg,audio/wav,audio/mp4,audio/aac" style="display:none">
+    </div>
+    <input type="text" id="audioVoiceName" class="modal-input" maxlength="80" placeholder="Название озвучки (например, СераяМышь.fm)">
+    <div id="audioVoiceUploadProgress" class="audio-upload-progress hidden">
+      <div class="audio-progress-bar"><div class="audio-progress-fill" id="audioVoiceProgressFill"></div></div>
+      <div class="audio-progress-label" id="audioVoiceProgressLabel">Загружаю...</div>
+    </div>
+    <div class="modal-actions">
+      <button id="audioVoiceCancel" class="tool-btn" type="button">Отмена</button>
+      <button id="audioVoiceSave" class="pick-btn small" type="button">Отправить озвучку</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Модал редактирования аудио ══ -->
+<div id="editAudioModal" class="modal">
+  <div class="modal-box">
+    <h3>✏️ Редактировать трек</h3>
+    <div class="preview-source-control audio-edit-preview-control">
+      <img id="editAudioCoverPreview" class="content-preview-image hidden" src="" alt="Обложка аудио">
+      <div class="preview-source-buttons">
+        <button id="editAudioCoverFileBtn" type="button" class="tool-btn">📁 Из файлов</button>
+        <button id="editAudioCoverGalleryBtn" type="button" class="tool-btn">🖼️ Из галереи</button>
+      </div>
+      <input type="file" id="editAudioCoverFileInput" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none">
+    </div>
+    <input type="text" id="editAudioTitle" class="modal-input" placeholder="Название трека" maxlength="80">
+    <textarea id="editAudioDesc" class="modal-input modal-textarea" placeholder="Описание" maxlength="400"></textarea>
+    <div class="modal-actions">
+      <button id="editAudioCancel" class="tool-btn">Отмена</button>
+      <button id="editAudioSave" class="pick-btn small">Сохранить</button>
+    </div>
+  </div>
+</div>
+
 <!-- Модал добавления игры -->
 <div id="gameModal" class="modal">
   <div class="modal-box">
     <h3>🎮 Добавить игру</h3>
     <div class="game-icon-upload-row">
       <img id="gameIconPreview" class="game-icon-preview hidden" src="" alt="">
-      <button id="gameIconPickBtn" type="button" class="tool-btn">📁 Выбрать иконку</button>
+      <div class="preview-source-buttons preview-source-buttons-vertical">
+        <button id="gameIconPickBtn" type="button" class="tool-btn">📁 Из файлов</button>
+        <button id="gameIconGalleryBtn" type="button" class="tool-btn">🖼️ Из галереи</button>
+      </div>
       <input type="file" id="gameIconFileInput" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none">
     </div>
     <input type="text" id="gameTitle" class="modal-input" placeholder="Название игры" maxlength="80">
@@ -810,7 +1083,10 @@
     <h3>✏️ Редактировать игру</h3>
     <div class="game-icon-upload-row">
       <img id="editGameIconPreview" class="game-icon-preview hidden" src="" alt="">
-      <button id="editGameIconPickBtn" type="button" class="tool-btn">📁 Сменить иконку</button>
+      <div class="preview-source-buttons preview-source-buttons-vertical">
+        <button id="editGameIconPickBtn" type="button" class="tool-btn">📁 Из файлов</button>
+        <button id="editGameIconGalleryBtn" type="button" class="tool-btn">🖼️ Из галереи</button>
+      </div>
       <input type="file" id="editGameIconFileInput" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none">
     </div>
     <input type="text" id="editGameTitle" class="modal-input" placeholder="Название игры" maxlength="80">
@@ -851,11 +1127,59 @@
   </div>
 </div>
 
+<!-- Общий выбор превью из уже загруженных фотографий -->
+<div id="photoPickerModal" class="modal photo-picker-modal">
+  <div class="modal-box photo-picker-box" role="dialog" aria-modal="true" aria-labelledby="photoPickerTitle">
+    <div class="photo-picker-heading">
+      <h3 id="photoPickerTitle">🖼️ Выбрать фото из галереи</h3>
+      <button type="button" id="photoPickerClose" class="tool-btn photo-picker-close" aria-label="Закрыть">✕</button>
+    </div>
+    <input type="search" id="photoPickerSearch" class="modal-input" placeholder="🔎 Поиск по имени фото..." autocomplete="off">
+    <div id="photoPickerStatus" class="modal-hint">Выбери фотографию из галереи</div>
+    <div id="photoPickerGrid" class="photo-picker-grid"></div>
+    <div class="modal-actions"><button type="button" id="photoPickerCancel" class="tool-btn">Отмена</button></div>
+  </div>
+</div>
+
+
+<!-- Создание локального плейлиста -->
+<div id="playlistCreateModal" class="modal">
+  <div class="modal-box">
+    <h3>♫ Новый плейлист</h3>
+    <label class="modal-label" for="playlistCreateTitle">Название плейлиста</label>
+    <input id="playlistCreateTitle" class="modal-input" type="text" maxlength="80" placeholder="Например, любимые треки">
+    <div class="modal-hint">Сначала плейлист будет виден только тебе. Его можно будет опубликовать позже.</div>
+    <div class="modal-actions">
+      <button id="playlistCreateCancel" class="tool-btn" type="button">Отмена</button>
+      <button id="playlistCreateSave" class="pick-btn small" type="button">Создать</button>
+    </div>
+  </div>
+</div>
+
+<!-- Выбор раздела перед публикацией плейлиста -->
+<div id="playlistPublishModal" class="modal">
+  <div class="modal-box">
+    <h3>🌐 Опубликовать плейлист</h3>
+    <label class="modal-label" for="playlistPublishCategory">Раздел</label>
+    <select id="playlistPublishCategory" class="modal-input"></select>
+    <div id="playlistPublishNewCategoryWrap" class="hidden">
+      <input id="playlistPublishNewCategoryName" class="modal-input" type="text" placeholder="название нового раздела" maxlength="50">
+      <div class="modal-hint">Новый раздел появится у всех после одобрения.</div>
+    </div>
+    <div class="modal-actions">
+      <button id="playlistPublishCancel" class="tool-btn" type="button">Отмена</button>
+      <button id="playlistPublishConfirm" class="pick-btn small" type="button">Опубликовать</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast" class="toast"></div>
 <audio id="gigerRemoveSound" src="assets/giperzadka.mp3" preload="auto"></audio>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="config.js"></script>
 <script src="script.js"></script>
+<script src="playlists.js"></script>
+<script src="ai-voices.js"></script>
 </body>
 </html>

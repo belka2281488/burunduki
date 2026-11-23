@@ -1,0 +1,12 @@
+name = "burunduki-audio-ai"
+main = "cloudflare-worker-burunduki.js"
+compatibility_date = "2026-11-23"
+
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "burunduki"
+
+[vars]
+R2_PUBLIC_BASE_URL = "https://pub-37df58c1c5c44cc797e3ba6cb6266d12.r2.dev"
+SUPABASE_URL = "https://hsohgexbhznvmxbotjpp.supabase.co"
+ALLOWED_ORIGIN = "https://belka2281488.github.io"

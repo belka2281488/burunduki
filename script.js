@@ -543,7 +543,7 @@ nameConfirm.addEventListener("click", async () => {
   subscribeSitePresence();
   unlockedKurymdykSet = null;
   unlockedKurymdykForCode = null;
-  await Promise.all([loadPhotos(), loadVideos()]);
+  await Promise.all([loadPhotos(), loadVideos(), loadAudio()]);
 
   // Welcome-модалка
   if (welcomeCodeModal) {
@@ -589,7 +589,7 @@ if (loginConfirm) {
     subscribeSitePresence();
     unlockedKurymdykSet = null;
     unlockedKurymdykForCode = null;
-    await Promise.all([loadPhotos(), loadVideos()]);
+    await Promise.all([loadPhotos(), loadVideos(), loadAudio()]);
   });
 }
 
@@ -4506,7 +4506,7 @@ profileFollowBtn.addEventListener("click", async () => {
   // сбрасываем кэш и тихо перезагружаем данные в фоне.
   mySubscriptions = null;
   await loadMySubscriptions();
-  await Promise.all([loadPhotos(), loadVideos()]);
+  await Promise.all([loadPhotos(), loadVideos(), loadAudio()]);
 
   await refreshFollowButton(viewingProfileCode);
   await refreshProfileStats(viewingProfileCode);
@@ -4730,6 +4730,13 @@ function subscribePostsRealtime() {
       { event: "INSERT", schema: "public", table: VIDEO_TABLE },
       () => {
         if (currentTab === "video") loadVideos();
+      }
+    )
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: AUDIO_TABLE },
+      () => {
+        loadAudio();
       }
     )
     .subscribe();
@@ -6214,7 +6221,7 @@ if (restoreCodeBtn) {
     subscribeSitePresence();
     unlockedKurymdykSet = null;
     unlockedKurymdykForCode = null;
-    await Promise.all([loadPhotos(), loadVideos()]);
+    await Promise.all([loadPhotos(), loadVideos(), loadAudio()]);
   });
 }
 /* ════════════════════════════════════════════════════════════
@@ -6344,6 +6351,7 @@ bindGigerUncheckSound("audio");
 
 /* ── Загрузка из Supabase ── */
 async function loadAudio() {
+  if (allAudioRecords.length) applyAudioSearch();
   statusEl.textContent = "Загружаю аудио...";
   const { data, error } = await db
     .from(AUDIO_TABLE)

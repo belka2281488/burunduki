@@ -30,6 +30,7 @@
         <label><input type="checkbox" name="catTab" value="photo" checked> 🖼️ Фото</label>
         <label><input type="checkbox" name="catTab" value="video" checked> 🎬 Видео</label>
         <label><input type="checkbox" name="catTab" value="text" checked> 📝 Тексты</label>
+        <label><input type="checkbox" name="catTab" value="audio" checked> 🎵 Аудио</label>
       </div>
       <button id="addCategoryDirectBtn" class="pick-btn small">Добавить раздел</button>
     </div>
@@ -60,6 +61,24 @@
       <input type="text" id="textSearch" class="search-input" placeholder="🔍 Поиск по заголовку / автору...">
     </div>
     <div id="textsList" class="admin-list">Загружаю...</div>
+  </section>
+
+  <section class="admin-section" id="section-audio">
+    <h2>🎵 Все аудиотреки</h2>
+    <div class="admin-filter-row">
+      <input type="text" id="audioSearch" class="search-input" placeholder="🔍 Поиск по названию / автору...">
+      <select id="audioCategoryFilter" class="modal-input"></select>
+    </div>
+    <div id="audioList" class="admin-list">Загружаю...</div>
+  </section>
+
+  <section class="admin-section" id="section-playlists">
+    <h2>📋 Все плейлисты</h2>
+    <div class="admin-filter-row">
+      <input type="text" id="playlistSearch" class="search-input" placeholder="🔍 Поиск по названию / автору...">
+      <select id="playlistCategoryFilter" class="modal-input"></select>
+    </div>
+    <div id="playlistsList" class="admin-list">Загружаю...</div>
   </section>
 
   <section class="admin-section" id="section-game-tags">
@@ -157,6 +176,28 @@
       <button id="editVideoDelete" class="tool-btn danger">Удалить видео</button>
       <button id="editVideoCancel" class="tool-btn">Отмена</button>
       <button id="editVideoSave" class="pick-btn small">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- модалка редактирования аудио -->
+<div id="editAudioModal" class="modal">
+  <div class="modal-box">
+    <h3>Редактировать аудиотрек</h3>
+    <label class="modal-label">Название</label>
+    <input type="text" id="editAudioTitle" class="modal-input">
+    <label class="modal-label">Описание</label>
+    <textarea id="editAudioDescription" class="modal-input modal-textarea"></textarea>
+    <label class="modal-label">Раздел</label>
+    <select id="editAudioCategory" class="modal-input"></select>
+    <label class="modal-label">Автор</label>
+    <select id="editAudioOwner" class="modal-input"></select>
+    <label class="modal-label">Дата и время публикации</label>
+    <input type="datetime-local" id="editAudioDate" class="modal-input">
+    <div class="modal-actions">
+      <button id="editAudioDelete" class="tool-btn danger">Удалить трек</button>
+      <button id="editAudioCancel" class="tool-btn">Отмена</button>
+      <button id="editAudioSave" class="pick-btn small">Сохранить</button>
     </div>
   </div>
 </div>

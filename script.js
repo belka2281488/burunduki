@@ -931,8 +931,6 @@ function renderCategoryTabs() {
 
   // Показываем только разделы, разрешённые для текущей вкладки
   const visibleCats = allCategories.filter((cat) => {
-    // Аудио и плейлисты используют те же разделы, что и фотогалерея.
-    if (currentTab === "audio") return true;
     if (!cat.allowed_tabs || cat.allowed_tabs.length === 0) return true;
     return cat.allowed_tabs.includes(currentTab);
   });

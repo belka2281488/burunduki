@@ -152,7 +152,7 @@ function renderAllCategories() {
     const videoCount = allVideos.filter(v => v.category_id === cat.id).length;
     const tabs = (!cat.allowed_tabs || cat.allowed_tabs.length === 0)
       ? "все типы"
-      : cat.allowed_tabs.map(t => t === "photo" ? "🖼️ Фото" : t === "video" ? "🎬 Видео" : "📝 Тексты").join(", ");
+      : cat.allowed_tabs.map(t => t === "photo" ? "🖼️ Фото" : t === "video" ? "🎬 Видео" : t === "audio" ? "🎵 Аудио" : "📝 Тексты").join(", ");
     const row = document.createElement("div");
     row.className = "admin-row";
     row.innerHTML = `
@@ -195,26 +195,28 @@ async function renameCategory(cat) {
 
 async function editCategoryTabs(cat) {
   const current = (!cat.allowed_tabs || cat.allowed_tabs.length === 0)
-    ? ["photo", "video", "text"]
+    ? ["photo", "video", "text", "audio"]
     : cat.allowed_tabs;
 
   // Простой диалог через confirm-цепочку, понятный и без модалок
   const wantPhoto = confirm(`Раздел «${cat.name}»\n\nПоказывать в 🖼️ ФОТО?\n(Сейчас: ${current.includes("photo") ? "да" : "нет"})`);
   const wantVideo = confirm(`Раздел «${cat.name}»\n\nПоказывать в 🎬 ВИДЕО?\n(Сейчас: ${current.includes("video") ? "да" : "нет"})`);
   const wantText  = confirm(`Раздел «${cat.name}»\n\nПоказывать в 📝 ТЕКСТАХ?\n(Сейчас: ${current.includes("text") ? "да" : "нет"})`);
+  const wantAudio = confirm(`Раздел «${cat.name}»\n\nПоказывать в 🎵 АУДИО?\n(Сейчас: ${current.includes("audio") ? "да" : "нет"})`);
 
   const tabs = [];
   if (wantPhoto) tabs.push("photo");
   if (wantVideo) tabs.push("video");
   if (wantText)  tabs.push("text");
+  if (wantAudio) tabs.push("audio");
 
   if (tabs.length === 0) {
     showToast("Нужно выбрать хотя бы один тип");
     return;
   }
 
-  // Если выбраны все три — сохраняем null (= без ограничений)
-  const allowed_tabs = tabs.length === 3 ? null : tabs;
+  // Если выбраны все четыре — сохраняем null (= без ограничений)
+  const allowed_tabs = tabs.length === 4 ? null : tabs;
 
   const { error } = await db
     .from(CATEGORY_TABLE)
@@ -264,7 +266,8 @@ document.getElementById("addCategoryDirectBtn").addEventListener("click", async 
     return;
   }
   const checkedTabs = Array.from(document.querySelectorAll("input[name='catTab']:checked")).map(el => el.value);
-  const allowed_tabs = checkedTabs.length === 3 || checkedTabs.length === 0 ? null : checkedTabs;
+  // null = без ограничений (все 4 типа)
+  const allowed_tabs = checkedTabs.length === 4 || checkedTabs.length === 0 ? null : checkedTabs;
   const { error } = await db.from(CATEGORY_TABLE).insert({ name, status: "approved", allowed_tabs });
   if (error) {
     showToast("Не удалось добавить: " + error.message);
@@ -276,7 +279,12 @@ document.getElementById("addCategoryDirectBtn").addEventListener("click", async 
 });
 
 function fillPhotoCategoryFilter() {
-  [document.getElementById("photoCategoryFilter"), document.getElementById("videoCategoryFilter")].forEach((sel) => {
+  [
+    document.getElementById("photoCategoryFilter"),
+    document.getElementById("videoCategoryFilter"),
+    document.getElementById("audioCategoryFilter"),
+    document.getElementById("playlistCategoryFilter"),
+  ].forEach((sel) => {
     if (!sel) return;
     const prev = sel.value;
     sel.innerHTML = `<option value="all">Все разделы</option><option value="none">Без раздела</option>`;
@@ -964,6 +972,280 @@ const textSearchInput = document.getElementById("textSearch");
 if (textSearchInput) textSearchInput.addEventListener("input", renderTexts);
 
 /* ==========================================================
+   АУДИО
+   ========================================================== */
+const AUDIO_TABLE = "burunduk_audio";
+let allAudio = [];
+
+async function loadAudio() {
+  const el = document.getElementById("audioList");
+  const { data, error } = await db
+    .from(AUDIO_TABLE)
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) {
+    if (el) el.textContent = "Ошибка загрузки аудио: " + error.message;
+    return;
+  }
+  allAudio = data || [];
+  renderAudio();
+}
+
+function renderAudio() {
+  const el = document.getElementById("audioList");
+  if (!el) return;
+  const query = (document.getElementById("audioSearch")?.value || "").trim().toLowerCase();
+  const catFilter = document.getElementById("audioCategoryFilter")?.value || "all";
+  let filtered = allAudio;
+  if (query) {
+    filtered = filtered.filter(a =>
+      (a.title || "").toLowerCase().includes(query) ||
+      (a.owner_name || "").toLowerCase().includes(query)
+    );
+  }
+  if (catFilter !== "all") {
+    filtered = catFilter === "none"
+      ? filtered.filter(a => !a.category_id)
+      : filtered.filter(a => a.category_id === catFilter);
+  }
+  if (!filtered.length) {
+    el.innerHTML = "<div class='admin-empty'>Нет аудиотреков</div>";
+    return;
+  }
+  el.innerHTML = "";
+  filtered.forEach(audio => {
+    const cat = allCategories.find(c => c.id === audio.category_id);
+    const dur = audio.duration_sec ? `${Math.floor(audio.duration_sec / 60)}:${String(audio.duration_sec % 60).padStart(2, "0")}` : "—";
+    const row = document.createElement("div");
+    row.className = "admin-row";
+    row.innerHTML = `
+      <div class="admin-row-info">
+        <div class="admin-row-title">${escapeHtml(audio.title || "Без названия")}</div>
+        <div class="admin-row-sub">
+          автор: ${escapeHtml(audio.owner_name || "—")} ·
+          ${new Date(audio.created_at).toLocaleDateString("ru")} ·
+          длина: ${dur} ·
+          раздел: ${escapeHtml(cat?.name || "—")}
+          ${audio.followers_only ? " · 🔒 подписчики" : ""}
+        </div>
+      </div>
+      <div class="admin-row-actions">
+        <button class="tool-btn" data-edit>Изменить</button>
+        <button class="tool-btn danger" data-delete>Удалить</button>
+      </div>
+    `;
+    row.querySelector("[data-edit]").addEventListener("click", () => openEditAudioModal(audio));
+    row.querySelector("[data-delete]").addEventListener("click", () => deleteAudio(audio));
+    el.appendChild(row);
+  });
+}
+
+async function deleteAudio(audio) {
+  const ok = await askConfirm(
+    "Удалить аудиотрек?",
+    `«${audio.title || "Без названия"}» (автор: ${audio.owner_name || "—"}) будет удалён безвозвратно.`
+  );
+  if (!ok) return;
+  const { error } = await db.from(AUDIO_TABLE).delete().eq("id", audio.id);
+  if (error) { showToast("Ошибка: " + error.message); return; }
+  showToast("Трек удалён ✅");
+  await loadAudio();
+}
+
+/* --- Модалка редактирования аудио --- */
+const editAudioModal    = document.getElementById("editAudioModal");
+const editAudioTitle    = document.getElementById("editAudioTitle");
+const editAudioDescr    = document.getElementById("editAudioDescription");
+const editAudioCategory = document.getElementById("editAudioCategory");
+const editAudioOwner    = document.getElementById("editAudioOwner");
+const editAudioDate     = document.getElementById("editAudioDate");
+const editAudioCancel   = document.getElementById("editAudioCancel");
+const editAudioSave     = document.getElementById("editAudioSave");
+const editAudioDelete   = document.getElementById("editAudioDelete");
+
+let currentEditAudio = null;
+
+function openEditAudioModal(audio) {
+  currentEditAudio = audio;
+  editAudioTitle.value = audio.title || "";
+  editAudioDescr.value = audio.description || "";
+  editAudioDate.value = audio.created_at ? audio.created_at.slice(0, 16) : "";
+
+  // Заполняем раздел
+  editAudioCategory.innerHTML = `<option value="">— без раздела —</option>`;
+  allCategories.forEach(cat => {
+    const opt = document.createElement("option");
+    opt.value = cat.id;
+    opt.textContent = cat.name;
+    if (cat.id === audio.category_id) opt.selected = true;
+    editAudioCategory.appendChild(opt);
+  });
+
+  // Заполняем автора из уникальных owner_code/owner_name из аудио
+  const owners = [];
+  const seen = new Set();
+  allAudio.forEach(a => {
+    if (a.owner_code && !seen.has(a.owner_code)) {
+      seen.add(a.owner_code);
+      owners.push({ code: a.owner_code, name: a.owner_name || a.owner_code });
+    }
+  });
+  editAudioOwner.innerHTML = "";
+  owners.forEach(o => {
+    const opt = document.createElement("option");
+    opt.value = o.code;
+    opt.textContent = o.name;
+    if (o.code === audio.owner_code) opt.selected = true;
+    editAudioOwner.appendChild(opt);
+  });
+
+  editAudioModal.classList.add("active");
+}
+
+if (editAudioCancel) editAudioCancel.addEventListener("click", () => editAudioModal.classList.remove("active"));
+
+if (editAudioSave) editAudioSave.addEventListener("click", async () => {
+  if (!currentEditAudio) return;
+  const catVal = editAudioCategory.value || null;
+  const ownerCode = editAudioOwner.value;
+  const ownerName = editAudioOwner.options[editAudioOwner.selectedIndex]?.textContent || ownerCode;
+  const { error } = await db.from(AUDIO_TABLE).update({
+    title: editAudioTitle.value.trim(),
+    description: editAudioDescr.value.trim() || null,
+    category_id: catVal,
+    owner_code: ownerCode,
+    owner_name: ownerName,
+    created_at: editAudioDate.value ? new Date(editAudioDate.value).toISOString() : currentEditAudio.created_at,
+  }).eq("id", currentEditAudio.id);
+  if (error) { showToast("Ошибка: " + error.message); return; }
+  showToast("Трек обновлён ✅");
+  editAudioModal.classList.remove("active");
+  await loadAudio();
+});
+
+if (editAudioDelete) editAudioDelete.addEventListener("click", async () => {
+  if (!currentEditAudio) return;
+  editAudioModal.classList.remove("active");
+  await deleteAudio(currentEditAudio);
+});
+
+const audioSearchInput = document.getElementById("audioSearch");
+if (audioSearchInput) audioSearchInput.addEventListener("input", renderAudio);
+const audioCatFilter = document.getElementById("audioCategoryFilter");
+if (audioCatFilter) audioCatFilter.addEventListener("change", renderAudio);
+
+/* ==========================================================
+   ПЛЕЙЛИСТЫ
+   ========================================================== */
+const PLAYLIST_TABLE = "burunduk_playlists";
+const PLAYLIST_ITEMS_TABLE = "burunduk_playlist_items";
+let allPlaylists = [];
+
+async function loadPlaylists() {
+  const el = document.getElementById("playlistsList");
+  const { data, error } = await db
+    .from(PLAYLIST_TABLE)
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) {
+    if (el) el.textContent = "Ошибка загрузки плейлистов: " + error.message;
+    return;
+  }
+  allPlaylists = data || [];
+  renderPlaylists();
+}
+
+function renderPlaylists() {
+  const el = document.getElementById("playlistsList");
+  if (!el) return;
+  const query = (document.getElementById("playlistSearch")?.value || "").trim().toLowerCase();
+  const catFilter = document.getElementById("playlistCategoryFilter")?.value || "all";
+  let filtered = allPlaylists;
+  if (query) {
+    filtered = filtered.filter(p =>
+      (p.title || "").toLowerCase().includes(query) ||
+      (p.owner_name || "").toLowerCase().includes(query)
+    );
+  }
+  if (catFilter !== "all") {
+    filtered = catFilter === "none"
+      ? filtered.filter(p => !p.category_id)
+      : filtered.filter(p => p.category_id === catFilter);
+  }
+  if (!filtered.length) {
+    el.innerHTML = "<div class='admin-empty'>Нет плейлистов</div>";
+    return;
+  }
+  el.innerHTML = "";
+  filtered.forEach(pl => {
+    const cat = allCategories.find(c => c.id === pl.category_id);
+    const row = document.createElement("div");
+    row.className = "admin-row";
+    row.innerHTML = `
+      <div class="admin-row-info">
+        <div class="admin-row-title">${escapeHtml(pl.title || "Без названия")}</div>
+        <div class="admin-row-sub">
+          автор: ${escapeHtml(pl.owner_name || "—")} ·
+          ${new Date(pl.created_at).toLocaleDateString("ru")} ·
+          раздел: ${escapeHtml(cat?.name || "—")}
+          ${pl.is_public ? "" : " · 🔒 приватный"}
+        </div>
+      </div>
+      <div class="admin-row-actions">
+        <button class="tool-btn" data-editcat>Раздел</button>
+        <button class="tool-btn danger" data-delete>Удалить</button>
+      </div>
+    `;
+    row.querySelector("[data-editcat]").addEventListener("click", () => editPlaylistCategory(pl));
+    row.querySelector("[data-delete]").addEventListener("click", () => deletePlaylist(pl));
+    el.appendChild(row);
+  });
+}
+
+async function editPlaylistCategory(pl) {
+  const catNames = allCategories.map(c => `${c.name} [${c.id.slice(0, 6)}]`).join("\n");
+  const input = prompt(
+    `Раздел для плейлиста «${pl.title}»\n\nТекущий: ${allCategories.find(c => c.id === pl.category_id)?.name || "—"}\n\nВведи ID раздела или его название (частично):\n\n${catNames}`,
+    pl.category_id || ""
+  );
+  if (input === null) return; // отмена
+  const trimmed = input.trim();
+  let catId = null;
+  if (trimmed) {
+    // Поиск по полному ID или по имени
+    const found = allCategories.find(c =>
+      c.id === trimmed ||
+      c.id.startsWith(trimmed) ||
+      c.name.toLowerCase().includes(trimmed.toLowerCase())
+    );
+    if (!found) { showToast("Раздел не найден"); return; }
+    catId = found.id;
+  }
+  const { error } = await db.from(PLAYLIST_TABLE).update({ category_id: catId }).eq("id", pl.id);
+  if (error) { showToast("Ошибка: " + error.message); return; }
+  showToast("Раздел обновлён ✅");
+  await loadPlaylists();
+}
+
+async function deletePlaylist(pl) {
+  const ok = await askConfirm(
+    "Удалить плейлист?",
+    `«${pl.title || "Без названия"}» (автор: ${pl.owner_name || "—"}) и все его треки будут удалены безвозвратно.`
+  );
+  if (!ok) return;
+  await db.from(PLAYLIST_ITEMS_TABLE).delete().eq("playlist_id", pl.id);
+  const { error } = await db.from(PLAYLIST_TABLE).delete().eq("id", pl.id);
+  if (error) { showToast("Ошибка: " + error.message); return; }
+  showToast("Плейлист удалён ✅");
+  await loadPlaylists();
+}
+
+const playlistSearchInput = document.getElementById("playlistSearch");
+if (playlistSearchInput) playlistSearchInput.addEventListener("input", renderPlaylists);
+const playlistCatFilter = document.getElementById("playlistCategoryFilter");
+if (playlistCatFilter) playlistCatFilter.addEventListener("change", renderPlaylists);
+
+/* ==========================================================
    ИГРЫ
    ========================================================== */
 const ADMIN_GAMES_TABLE        = "burunduk_games";
@@ -1108,6 +1390,8 @@ async function boot() {
   await loadPhotos();
   await loadVideos();
   await loadTexts();
+  await loadAudio();
+  await loadPlaylists();
   await loadAdminGames();
   renderUsers();
 }

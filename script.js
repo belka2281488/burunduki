@@ -877,19 +877,29 @@ async function loadCategories() {
 }
 
 function fillCategorySelect() {
-  [uploadCategory, videoCategory, audioCategory, document.getElementById("playlistPublishCategory")].forEach((selectEl) => {
+  const selectsByTab = [
+    { el: uploadCategory,                                        tab: "photo"    },
+    { el: videoCategory,                                         tab: "video"    },
+    { el: audioCategory,                                         tab: "audio"    },
+    { el: document.getElementById("playlistPublishCategory"),    tab: "audio"    },
+  ];
+  selectsByTab.forEach(({ el: selectEl, tab }) => {
     if (!selectEl) return;
+    const prev = selectEl.value;
     selectEl.innerHTML = "";
-    allCategories.forEach((cat) => {
-      const opt = document.createElement("option");
-      opt.value = cat.id;
-      opt.textContent = cat.name;
-      selectEl.appendChild(opt);
-    });
+    allCategories
+      .filter(cat => !cat.allowed_tabs || cat.allowed_tabs.length === 0 || cat.allowed_tabs.includes(tab))
+      .forEach((cat) => {
+        const opt = document.createElement("option");
+        opt.value = cat.id;
+        opt.textContent = cat.name;
+        selectEl.appendChild(opt);
+      });
     const newOpt = document.createElement("option");
     newOpt.value = NEW_CATEGORY_VALUE;
     newOpt.textContent = "➕ Создать свой раздел...";
     selectEl.appendChild(newOpt);
+    if (prev) selectEl.value = prev;
   });
 }
 

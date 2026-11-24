@@ -948,9 +948,11 @@ function renderTexts() {
         ${preview ? `<div class="admin-row-preview">${escapeHtml(preview)}…</div>` : ""}
       </div>
       <div class="admin-row-actions">
+        <button class="tool-btn" data-edit>Изменить</button>
         <button class="tool-btn danger" data-delete>Удалить</button>
       </div>
     `;
+    row.querySelector("[data-edit]").addEventListener("click", () => openEditTextModal(text));
     row.querySelector("[data-delete]").addEventListener("click", () => deleteText(text));
     el.appendChild(row);
   });
@@ -967,6 +969,76 @@ async function deleteText(text) {
   showToast("Текст удалён");
   await loadTexts();
 }
+
+/* --- Модалка редактирования текста --- */
+const editTextModal        = document.getElementById("editTextModal");
+const editTextTitle        = document.getElementById("editTextTitle");
+const editTextGdocUrl      = document.getElementById("editTextGdocUrl");
+const editTextCategory     = document.getElementById("editTextCategory");
+const editTextOwner        = document.getElementById("editTextOwner");
+const editTextFollowersOnly = document.getElementById("editTextFollowersOnly");
+const editTextDate         = document.getElementById("editTextDate");
+const editTextCancel       = document.getElementById("editTextCancel");
+const editTextSave         = document.getElementById("editTextSave");
+const editTextDelete       = document.getElementById("editTextDelete");
+
+let currentEditText = null;
+
+function openEditTextModal(text) {
+  currentEditText = text;
+  editTextTitle.value = text.title || "";
+  editTextGdocUrl.value = text.gdoc_url || "";
+  editTextFollowersOnly.checked = !!text.followers_only;
+  editTextDate.value = text.created_at ? text.created_at.slice(0, 16) : "";
+
+  editTextCategory.innerHTML = `<option value="">— без раздела —</option>`;
+  allCategories.forEach(cat => {
+    const opt = document.createElement("option");
+    opt.value = cat.id;
+    opt.textContent = cat.name;
+    if (cat.id === text.category_id) opt.selected = true;
+    editTextCategory.appendChild(opt);
+  });
+
+  editTextOwner.innerHTML = `<option value="">Без автора</option>`;
+  collectUsers().forEach((u) => {
+    const opt = document.createElement("option");
+    opt.value = u.code;
+    opt.dataset.name = u.name;
+    opt.textContent = `${u.name} (фото: ${u.photoCount}, видео: ${u.videoCount})`;
+    editTextOwner.appendChild(opt);
+  });
+  editTextOwner.value = text.owner_code || "";
+
+  editTextModal.classList.add("active");
+}
+
+if (editTextCancel) editTextCancel.addEventListener("click", () => editTextModal.classList.remove("active"));
+
+if (editTextSave) editTextSave.addEventListener("click", async () => {
+  if (!currentEditText) return;
+  const ownerCode = editTextOwner.value || null;
+  const ownerName = ownerCode ? (editTextOwner.options[editTextOwner.selectedIndex]?.dataset.name || ownerCode) : null;
+  const { error } = await db.from(TEXT_TABLE).update({
+    title: editTextTitle.value.trim(),
+    gdoc_url: editTextGdocUrl.value.trim() || null,
+    category_id: editTextCategory.value || null,
+    owner_code: ownerCode,
+    owner_name: ownerName,
+    followers_only: editTextFollowersOnly.checked,
+    created_at: editTextDate.value ? new Date(editTextDate.value).toISOString() : currentEditText.created_at,
+  }).eq("id", currentEditText.id);
+  if (error) { showToast("Ошибка: " + error.message); return; }
+  showToast("Текст обновлён ✅");
+  editTextModal.classList.remove("active");
+  await loadTexts();
+});
+
+if (editTextDelete) editTextDelete.addEventListener("click", async () => {
+  if (!currentEditText) return;
+  editTextModal.classList.remove("active");
+  await deleteText(currentEditText);
+});
 
 const textSearchInput = document.getElementById("textSearch");
 if (textSearchInput) textSearchInput.addEventListener("input", renderTexts);
@@ -1081,23 +1153,16 @@ function openEditAudioModal(audio) {
     editAudioCategory.appendChild(opt);
   });
 
-  // Заполняем автора из уникальных owner_code/owner_name из аудио
-  const owners = [];
-  const seen = new Set();
-  allAudio.forEach(a => {
-    if (a.owner_code && !seen.has(a.owner_code)) {
-      seen.add(a.owner_code);
-      owners.push({ code: a.owner_code, name: a.owner_name || a.owner_code });
-    }
-  });
-  editAudioOwner.innerHTML = "";
-  owners.forEach(o => {
+  // Заполняем автора из общего списка пользователей (как в фото/видео)
+  editAudioOwner.innerHTML = `<option value="">Без автора</option>`;
+  collectUsers().forEach((u) => {
     const opt = document.createElement("option");
-    opt.value = o.code;
-    opt.textContent = o.name;
-    if (o.code === audio.owner_code) opt.selected = true;
+    opt.value = u.code;
+    opt.dataset.name = u.name;
+    opt.textContent = `${u.name} (фото: ${u.photoCount}, видео: ${u.videoCount})`;
     editAudioOwner.appendChild(opt);
   });
+  editAudioOwner.value = audio.owner_code || "";
 
   editAudioModal.classList.add("active");
 }
@@ -1107,8 +1172,8 @@ if (editAudioCancel) editAudioCancel.addEventListener("click", () => editAudioMo
 if (editAudioSave) editAudioSave.addEventListener("click", async () => {
   if (!currentEditAudio) return;
   const catVal = editAudioCategory.value || null;
-  const ownerCode = editAudioOwner.value;
-  const ownerName = editAudioOwner.options[editAudioOwner.selectedIndex]?.textContent || ownerCode;
+  const ownerCode = editAudioOwner.value || null;
+  const ownerName = ownerCode ? (editAudioOwner.options[editAudioOwner.selectedIndex]?.dataset.name || ownerCode) : null;
   const { error } = await db.from(AUDIO_TABLE).update({
     title: editAudioTitle.value.trim(),
     description: editAudioDescr.value.trim() || null,

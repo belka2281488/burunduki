@@ -180,6 +180,32 @@
   </div>
 </div>
 
+<!-- модалка редактирования текста -->
+<div id="editTextModal" class="modal">
+  <div class="modal-box">
+    <h3>Редактировать текст</h3>
+    <label class="modal-label">Заголовок</label>
+    <input type="text" id="editTextTitle" class="modal-input">
+    <label class="modal-label">Ссылка на Google Doc (если есть)</label>
+    <input type="text" id="editTextGdocUrl" class="modal-input" placeholder="https://docs.google.com/...">
+    <label class="modal-label">Раздел</label>
+    <select id="editTextCategory" class="modal-input"></select>
+    <label class="modal-label">Автор</label>
+    <select id="editTextOwner" class="modal-input"></select>
+    <label class="modal-label" style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+      <input type="checkbox" id="editTextFollowersOnly" style="width:auto;">
+      только для подписчиков 🔒
+    </label>
+    <label class="modal-label">Дата и время публикации</label>
+    <input type="datetime-local" id="editTextDate" class="modal-input">
+    <div class="modal-actions">
+      <button id="editTextDelete" class="tool-btn danger">Удалить текст</button>
+      <button id="editTextCancel" class="tool-btn">Отмена</button>
+      <button id="editTextSave" class="pick-btn small">Сохранить</button>
+    </div>
+  </div>
+</div>
+
 <!-- модалка редактирования аудио -->
 <div id="editAudioModal" class="modal">
   <div class="modal-box">

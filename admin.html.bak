@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Админка бурундуков 🛠️</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="admin.css">
+</head>
+<body class="admin-body">
+
+<header class="header">
+  <h1>🛠️ Админ-панелька бурундуков</h1>
+  <p class="subtitle">Только для своих, ссылка секретная — никому не кидай</p>
+</header>
+
+<main class="admin-main">
+
+  <section class="admin-section" id="section-pending-categories">
+    <h2>🕓 Заявки на новые разделы</h2>
+    <div id="pendingCategoriesList" class="admin-list">Загружаю...</div>
+  </section>
+
+  <section class="admin-section" id="section-categories">
+    <h2>📁 Все разделы</h2>
+    <div class="admin-add-row">
+      <input type="text" id="newCategoryDirectInput" class="modal-input" placeholder="название нового раздела (сразу одобренный)">
+      <div class="category-tabs-check" title="Где показывать раздел">
+        <label><input type="checkbox" name="catTab" value="photo" checked> 🖼️ Фото</label>
+        <label><input type="checkbox" name="catTab" value="video" checked> 🎬 Видео</label>
+        <label><input type="checkbox" name="catTab" value="text" checked> 📝 Тексты</label>
+        <label><input type="checkbox" name="catTab" value="audio" checked> 🎵 Аудио</label>
+      </div>
+      <button id="addCategoryDirectBtn" class="pick-btn small">Добавить раздел</button>
+    </div>
+    <div id="categoriesList" class="admin-list">Загружаю...</div>
+  </section>
+
+  <section class="admin-section" id="section-photos">
+    <h2>🖼️ Все фото</h2>
+    <div class="admin-filter-row">
+      <input type="text" id="photoSearch" class="search-input" placeholder="🔍 Поиск по имени...">
+      <select id="photoCategoryFilter" class="modal-input"></select>
+    </div>
+    <div id="photosList" class="admin-list">Загружаю...</div>
+  </section>
+
+  <section class="admin-section" id="section-videos">
+    <h2>🎬 Все видео</h2>
+    <div class="admin-filter-row">
+      <input type="text" id="videoSearch" class="search-input" placeholder="🔍 Поиск по имени...">
+      <select id="videoCategoryFilter" class="modal-input"></select>
+    </div>
+    <div id="videosList" class="admin-list">Загружаю...</div>
+  </section>
+
+  <section class="admin-section" id="section-texts">
+    <h2>📝 Все тексты</h2>
+    <div class="admin-filter-row">
+      <input type="text" id="textSearch" class="search-input" placeholder="🔍 Поиск по заголовку / автору...">
+    </div>
+    <div id="textsList" class="admin-list">Загружаю...</div>
+  </section>
+
+  <section class="admin-section" id="section-audio">
+    <h2>🎵 Все аудиотреки</h2>
+    <div class="admin-filter-row">
+      <input type="text" id="audioSearch" class="search-input" placeholder="🔍 Поиск по названию / автору...">
+      <select id="audioCategoryFilter" class="modal-input"></select>
+    </div>
+    <div id="audioList" class="admin-list">Загружаю...</div>
+  </section>
+
+  <section class="admin-section" id="section-playlists">
+    <h2>📋 Все плейлисты</h2>
+    <div class="admin-filter-row">
+      <input type="text" id="playlistSearch" class="search-input" placeholder="🔍 Поиск по названию / автору...">
+      <select id="playlistCategoryFilter" class="modal-input"></select>
+    </div>
+    <div id="playlistsList" class="admin-list">Загружаю...</div>
+  </section>
+
+  <section class="admin-section" id="section-game-tags">
+    <h2>🎮 Теги игр (разделы)</h2>
+    <p class="admin-hint">Здесь отображаются все теги, которые используются в играх. Ты можешь удалить тег из всех игр сразу — это уберёт его из фильтра на сайте. Сами игры при этом не удаляются.</p>
+    <div id="gameTagsList" class="admin-list">Загружаю...</div>
+  </section>
+
+  <section class="admin-section" id="section-games">
+    <h2>🎮 Все игры</h2>
+    <div class="admin-filter-row">
+      <input type="text" id="gameAdminSearch" class="search-input" placeholder="🔍 Поиск по названию / автору...">
+    </div>
+    <div id="gamesList" class="admin-list">Загружаю...</div>
+  </section>
+
+  <section class="admin-section" id="section-gigers">
+    <h2>🐿️ Выдать гиперзадки</h2>
+    <p class="admin-hint">Впиши имя пользователя (как оно отображается на сайте) — если такой автор уже публиковал фото/видео, код подставится сам. Либо просто нажми "Выдать гиперзадки" прямо в разделе "Пользователи" ниже.</p>
+    <div class="admin-add-row">
+      <input type="text" id="giftGigersOwnerName" class="modal-input" placeholder="имя пользователя">
+      <input type="number" id="giftGigersAmount" class="modal-input" placeholder="сколько гиперзадок" value="10" min="1" style="max-width: 140px;">
+      <button id="giftGigersBtn" class="pick-btn small">Выдать</button>
+    </div>
+  </section>
+
+  <section class="admin-section" id="section-frames">
+    <h2>🖼️ Выдать рамку аватарки</h2>
+    <p class="admin-hint">Впиши имя пользователя (как оно отображается на сайте) — если такой автор уже публиковал фото/видео или заходил на сайт, код подставится сам. Рамка выдаётся бесплатно, без списания гиперзадок и без проверки условий (постов/цены) — удобно для теста.</p>
+    <div class="admin-add-row">
+      <input type="text" id="giftFrameOwnerName" class="modal-input" placeholder="имя пользователя">
+      <select id="giftFrameSelect" class="modal-input"></select>
+      <button id="giftFrameBtn" class="pick-btn small">Выдать рамку</button>
+    </div>
+    <label class="admin-hint" style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+      <input type="checkbox" id="giftFrameEquipToo" checked style="width:auto;">
+      сразу надеть эту рамку на пользователя (удобно для теста)
+    </label>
+  </section>
+
+  <section class="admin-section" id="section-users">
+    <h2>👥 Пользователи (авторы)</h2>
+    <p class="admin-hint">Список всех owner_code/owner_name, встреченных в фото и видео. Можно переименовать автора везде разом — полезно для старых фото без автора.</p>
+    <div id="usersList" class="admin-list">Загружаю...</div>
+  </section>
+
+</main>
+
+<!-- модалка редактирования фото -->
+<div id="editPhotoModal" class="modal">
+  <div class="modal-box">
+    <h3>Редактировать фото</h3>
+    <div class="modal-preview-wrap">
+      <img id="editPhotoPreview" class="modal-preview" alt="превью">
+    </div>
+    <label class="modal-label">Название</label>
+    <input type="text" id="editPhotoName" class="modal-input">
+    <label class="modal-label">Описание</label>
+    <textarea id="editPhotoDescription" class="modal-input modal-textarea"></textarea>
+    <label class="modal-label">Раздел</label>
+    <select id="editPhotoCategory" class="modal-input"></select>
+    <label class="modal-label">Автор</label>
+    <select id="editPhotoOwner" class="modal-input"></select>
+    <div class="modal-hint">Выбери из уже зареганных пользователей — фото привяжется к нему по-настоящему (owner_code), как будто он сам его добавил.</div>
+    <label class="modal-label">Дата и время публикации</label>
+    <input type="datetime-local" id="editPhotoDate" class="modal-input">
+    <div class="modal-hint">Влияет на сортировку "по дате" и на то, где фото окажется в ленте. Можно поставить любую дату, если знаешь, когда фото реально было сделано.</div>
+    <div class="modal-actions">
+      <button id="editPhotoDelete" class="tool-btn danger">Удалить фото</button>
+      <button id="editPhotoCancel" class="tool-btn">Отмена</button>
+      <button id="editPhotoSave" class="pick-btn small">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- модалка редактирования видео -->
+<div id="editVideoModal" class="modal">
+  <div class="modal-box">
+    <h3>Редактировать видео</h3>
+    <label class="modal-label">Ссылка на видео</label>
+    <input type="text" id="editVideoUrl" class="modal-input">
+    <label class="modal-label">Название</label>
+    <input type="text" id="editVideoName" class="modal-input">
+    <label class="modal-label">Описание</label>
+    <textarea id="editVideoDescription" class="modal-input modal-textarea"></textarea>
+    <label class="modal-label">Раздел</label>
+    <select id="editVideoCategory" class="modal-input"></select>
+    <label class="modal-label">Автор</label>
+    <select id="editVideoOwner" class="modal-input"></select>
+    <div class="modal-hint">Выбери из уже зареганных пользователей — видео привяжется к нему по-настоящему (owner_code).</div>
+    <label class="modal-label">Дата и время публикации</label>
+    <input type="datetime-local" id="editVideoDate" class="modal-input">
+    <div class="modal-hint">Влияет на сортировку "по дате" и на то, где видео окажется в ленте. Можно поставить любую дату, если знаешь, когда видео реально было снято/загружено.</div>
+    <div class="modal-actions">
+      <button id="editVideoDelete" class="tool-btn danger">Удалить видео</button>
+      <button id="editVideoCancel" class="tool-btn">Отмена</button>
+      <button id="editVideoSave" class="pick-btn small">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- модалка редактирования текста -->
+<div id="editTextModal" class="modal">
+  <div class="modal-box">
+    <h3>Редактировать текст</h3>
+    <label class="modal-label">Заголовок</label>
+    <input type="text" id="editTextTitle" class="modal-input">
+    <label class="modal-label">Ссылка на Google Doc (если есть)</label>
+    <input type="text" id="editTextGdocUrl" class="modal-input" placeholder="https://docs.google.com/...">
+    <label class="modal-label">Раздел</label>
+    <select id="editTextCategory" class="modal-input"></select>
+    <label class="modal-label">Автор</label>
+    <select id="editTextOwner" class="modal-input"></select>
+    <label class="modal-label" style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+      <input type="checkbox" id="editTextFollowersOnly" style="width:auto;">
+      только для подписчиков 🔒
+    </label>
+    <label class="modal-label">Дата и время публикации</label>
+    <input type="datetime-local" id="editTextDate" class="modal-input">
+    <div class="modal-actions">
+      <button id="editTextDelete" class="tool-btn danger">Удалить текст</button>
+      <button id="editTextCancel" class="tool-btn">Отмена</button>
+      <button id="editTextSave" class="pick-btn small">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- модалка редактирования аудио -->
+<div id="editAudioModal" class="modal">
+  <div class="modal-box">
+    <h3>Редактировать аудиотрек</h3>
+    <label class="modal-label">Название</label>
+    <input type="text" id="editAudioTitle" class="modal-input">
+    <label class="modal-label">Описание</label>
+    <textarea id="editAudioDescription" class="modal-input modal-textarea"></textarea>
+    <label class="modal-label">Раздел</label>
+    <select id="editAudioCategory" class="modal-input"></select>
+    <label class="modal-label">Автор</label>
+    <select id="editAudioOwner" class="modal-input"></select>
+    <label class="modal-label">Дата и время публикации</label>
+    <input type="datetime-local" id="editAudioDate" class="modal-input">
+    <div class="modal-actions">
+      <button id="editAudioDelete" class="tool-btn danger">Удалить трек</button>
+      <button id="editAudioCancel" class="tool-btn">Отмена</button>
+      <button id="editAudioSave" class="pick-btn small">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- модалка подтверждения удаления -->
+<div id="confirmModal" class="modal">
+  <div class="modal-box modal-box-small">
+    <h3 id="confirmModalTitle">Точно?</h3>
+    <p class="modal-warning" id="confirmModalText">Это действие нельзя отменить.</p>
+    <div class="modal-actions">
+      <button id="confirmModalCancel" class="tool-btn">Отмена</button>
+      <button id="confirmModalOk" class="pick-btn small danger">Да, делаем</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="admin.js"></script>
+</body>
+</html>
